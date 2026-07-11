@@ -1733,22 +1733,29 @@ button.peg {
     width: auto;
     height: auto;
   }
-  // A landing hole for the picked-up peg lights its socket.
+  // The pegs and the theme are both indigo, so highlights use a contrasting
+  // amber instead: amber marks the picked-up peg and its landing holes, while a
+  // neutral white ring marks the pegs that can currently jump.
+  --solo-accent: #ffce49;
+
+  // A landing hole for the picked-up peg lights its socket in amber.
   .solo-board:not(.locked) .sh.target::before {
-    background: oklch(var(--500));
-    box-shadow: 0 0 0 3px oklch(var(--500) / 0.3);
+    background: var(--solo-accent);
+    box-shadow: 0 0 0 3px rgba(255, 206, 73, 0.35);
   }
-  // Pegs that can jump glow faintly; the picked-up peg is ringed.
+  // Pegs that can jump get a soft white ring (subtle — there can be many).
   .solo-board:not(.locked) .solo-peg.jumpable {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.18),
       inset 0 -3px 7px rgba(0, 0, 0, 0.4),
-      0 0 0 2px oklch(var(--500) / 0.7);
+      0 0 0 2px rgba(255, 255, 255, 0.7);
   }
+  // The picked-up peg gets a bold amber ring + glow so it clearly stands out.
   .sh.selected .solo-peg {
     box-shadow:
-      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
-      0 0 0 3px oklch(var(--500));
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 0 0 3px var(--solo-accent),
+      0 0 10px 1px rgba(255, 206, 73, 0.6);
   }
 
   .solo-actions {
