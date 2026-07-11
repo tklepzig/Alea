@@ -125,10 +125,10 @@ let moveAnim: { at: number; sx: number; sy: number; slide: boolean } | null = nu
 let capturedGhost: { at: number; player: Player } | null = null;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
 const CAPTURE_FLASH_MS = 720;
-// A stone is 70% of a point which is 12% of the board (keep in sync with the
-// .muehle-stone width in style.scss), so its width is 8.4% of the board;
-// translating by (board-% distance ÷ 8.4) × 100 shifts it that far.
-const SLIDE_PER_BOARD_PCT = 100 / (12 * 0.7);
+// A stone is 62% of a point which is 12% of the board (keep in sync with the
+// .muehle-stone width in style.scss), so its width is 7.44% of the board;
+// translating by (board-% distance ÷ 7.44) × 100 shifts it that far.
+const SLIDE_PER_BOARD_PCT = 100 / (12 * 0.62);
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`m-${id}`) as T;
