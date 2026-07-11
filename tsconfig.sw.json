@@ -1,0 +1,4 @@
+{
+  "extends": "@tklepzig/offline-kit/tsconfig-sw.json",
+  "files": ["sw.ts"]
+}

@@ -1,0 +1,938 @@
+// Ada (sci-fi framework). The hub and Quadra run on the blue theme (root);
+// Ciphra keeps its green identity via a body class the router toggles — same
+// shade math as ada.green, re-declared in scope so every derived colour var
+// recomputes against the green hue. Resolved from node_modules via the sass
+// --load-path in the build script, so the whole app ships as a single
+// style.min.css (offline).
+@import "ada-ui/scss/ada.blue";
+@import "ada-ui/scss/ada";
+
+body.theme-ciphra {
+  @extend %colourShades;
+  --hue: 132;
+  --l-base: 0.35;
+  --c-base: 0.1;
+  --l-base-light: 0.45;
+  --c-base-light: 0.15;
+}
+
+// Self-hosted Open Sans (Ada's default family) so the PWA renders identically
+// offline. Refresh with scripts/update-fonts.sh.
+@font-face {
+  font-family: "Open Sans";
+  font-style: normal;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url("./assets/fonts/open-sans-latin.woff2") format("woff2");
+}
+
+:root {
+  // Quadra's disc + board palette as custom properties.
+  --disc-red: #e23c43;
+  --disc-yellow: #f4c542;
+  --board-blue: #0e3c8c;
+  --board-blue-edge: #0a2a5e;
+  --hole-empty: #08245a;
+}
+
+// The HTML `hidden` attribute must beat component display rules (e.g. `.command`
+// and `.stat-row` set `display`, which would otherwise override `[hidden]`).
+[hidden] {
+  display: none !important;
+}
+
+// ===========================================================================
+// App shell — single column, centred on desktop; one view (hub or game)
+// visible at a time, and one screen within a game
+// ===========================================================================
+.app {
+  max-width: 30rem;
+  margin: 0 auto;
+}
+@media (min-width: 640px) {
+  body {
+    min-height: 100vh;
+    display: grid;
+    align-content: safe center;
+  }
+  // Give the shell a definite width so it fills to 30rem instead of
+  // shrink-wrapping to content — otherwise the auto grid track sizes to the
+  // widest element (an appbar title), and boards jump in size when the title
+  // text changes length. 30rem < 640px, so this never overflows the breakpoint.
+  .app {
+    width: 30rem;
+  }
+}
+
+.screen,
+.view-hub {
+  display: grid;
+  gap: var(--spacing-lg);
+  align-content: start;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// In-app commands read better centred than Ada's default bottom-right label.
+.command {
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+}
+
+// ===========================================================================
+// App bar
+// ===========================================================================
+.appbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--spacing);
+}
+.appbar .title {
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.iconbtn {
+  width: 2.75rem;
+  height: 2.75rem;
+  background-color: var(--color800);
+  box-shadow: var(--box-shadow);
+  border-radius: var(--border-radius);
+  display: grid;
+  place-items: center;
+  color: var(--color100);
+  font-size: var(--text-lg);
+  cursor: pointer;
+
+  &.ghost {
+    visibility: hidden;
+  }
+  &:focus-visible {
+    outline: var(--border-width) solid oklch(var(--500));
+  }
+}
+
+.wordmark {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-xs);
+}
+.wordmark .name {
+  font-weight: 800;
+  font-size: var(--text-xl);
+  letter-spacing: 0.18em;
+}
+
+// stacked full-width CTAs
+.cta {
+  width: 100%;
+  min-height: 3.1rem;
+  font-size: var(--text-lg);
+}
+.cta-stack {
+  display: grid;
+  gap: var(--spacing);
+}
+
+// ===========================================================================
+// Settings rows (shared shape; games add their own controls)
+// ===========================================================================
+.set-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--spacing);
+  padding: var(--padding-sm) 0;
+}
+.set-row .lab {
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+.set-row .desc {
+  font-size: var(--text-xs);
+  color: oklch(var(--100) / 0.5);
+  margin-top: 2px;
+}
+
+// ===========================================================================
+// End screens (shared hero shape; result colours are per game)
+// ===========================================================================
+.end-hero {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing) 0;
+}
+.end-glyph {
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.end-title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-align: center;
+}
+.end-sub {
+  color: oklch(var(--100) / 0.75);
+  font-size: var(--text-base);
+  text-align: center;
+  line-height: 1.5;
+}
+
+// ===========================================================================
+// How-to dialogs
+// ===========================================================================
+.howto {
+  border: none;
+  padding: var(--padding);
+  background: transparent;
+  max-width: min(28rem, calc(100% - 2 * var(--spacing)));
+  width: 100%;
+  color: var(--fg-body);
+
+  &::backdrop {
+    background: rgb(0 0 0 / 0.6);
+    backdrop-filter: blur(2px);
+  }
+}
+.legend {
+  display: grid;
+  gap: var(--spacing);
+}
+.legend .li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: var(--spacing);
+  align-items: center;
+  font-size: var(--text-sm);
+  color: oklch(var(--100) / 0.85);
+}
+.legend .li b {
+  color: var(--fg-body);
+}
+.legend.pegs-legend .li {
+  grid-template-columns: 14px 1fr;
+}
+.note {
+  font-size: var(--text-sm);
+  color: oklch(var(--100) / 0.6);
+  line-height: 1.5;
+}
+.annot {
+  font-size: var(--text-xs);
+  color: oklch(var(--500));
+  letter-spacing: 0.03em;
+  text-align: center;
+  // Reserve exactly one rendered line so the row keeps its height when a hint
+  // is blanked (e.g. during "KI denkt …") — otherwise centred boards drift.
+  min-height: 1lh;
+}
+.tagline {
+  color: oklch(var(--100) / 0.78);
+  font-size: var(--text-base);
+  text-align: center;
+  line-height: 1.5;
+}
+
+// ===========================================================================
+// Game tokens — global, so the hub cards can reuse them.
+// Quadra: .disc/.d (red/yellow). Ciphra: .peg/.slot + the Okabe–Ito c1–c10.
+// ===========================================================================
+.disc {
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.35);
+}
+.disc.red {
+  background: var(--disc-red);
+}
+.disc.yellow {
+  background: var(--disc-yellow);
+}
+.disc.s {
+  width: 22px;
+  height: 22px;
+}
+.disc.l {
+  width: 44px;
+  height: 44px;
+}
+.d.red {
+  background: var(--disc-red);
+}
+.d.yellow {
+  background: var(--disc-yellow);
+}
+
+.peg {
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.35);
+  padding: 0;
+}
+button.peg {
+  cursor: pointer;
+}
+.peg.s {
+  width: 26px;
+  height: 26px;
+}
+.peg.m {
+  width: 36px;
+  height: 36px;
+}
+.peg.l {
+  width: 44px;
+  height: 44px;
+}
+.peg[disabled] {
+  opacity: 0.28;
+  cursor: default;
+}
+
+.slot {
+  border-radius: 50%;
+  border: 2px dashed oklch(var(--700));
+  background: oklch(var(--950));
+  padding: 0;
+  cursor: pointer;
+}
+.slot.m {
+  width: 36px;
+  height: 36px;
+}
+.slot.l {
+  width: 44px;
+  height: 44px;
+}
+.slot.active {
+  border-style: solid;
+  border-color: oklch(var(--500));
+  box-shadow: 0 0 0 3px oklch(var(--500) / 0.18);
+}
+
+// the 10-colour palette (Okabe–Ito, colourblind-safe; first 6 are the default)
+.c1 { background: #e69f00; }
+.c2 { background: #1a7abf; }
+.c3 { background: #009e73; }
+.c4 { background: #eeeeee; }
+.c5 { background: #9b5de5; }
+.c6 { background: #e63946; }
+.c7 { background: #cc79a7; }
+.c8 { background: #f5f5f5; }
+.c9 { background: #999999; }
+.c10 { background: #8a5a00; }
+
+// ===========================================================================
+// HUB — startpage
+// ===========================================================================
+.view-hub {
+  .wordmark .logo {
+    display: inline-grid;
+    grid-auto-flow: column;
+    gap: 4px;
+  }
+  .wordmark .logo .t {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .t.red { background: var(--disc-red); }
+  .t.yellow { background: var(--disc-yellow); }
+  .t.green { background: #009e73; }
+  .t.orange { background: #e69f00; }
+
+  .command.primary {
+    background-color: oklch(0.62 0.12 240);
+    color: #03121b;
+    font-weight: 700;
+  }
+}
+
+.game-list {
+  display: grid;
+  gap: var(--spacing);
+}
+.game-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--spacing);
+  padding: var(--padding);
+  background: oklch(var(--800) / 0.6);
+  border: var(--border-width-sm) solid oklch(var(--700) / 0.6);
+  border-radius: var(--border-radius);
+  color: var(--fg-body);
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: oklch(var(--500));
+    background: oklch(var(--800) / 0.85);
+  }
+  &:focus-visible {
+    outline: var(--border-width) solid oklch(var(--500));
+    outline-offset: 2px;
+  }
+}
+.card-tokens.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, 16px);
+  gap: 4px;
+}
+.card-tokens .tok {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.35);
+}
+.card-tokens .tok.red { background: var(--disc-red); }
+.card-tokens .tok.yellow { background: var(--disc-yellow); }
+.card-body {
+  display: grid;
+  gap: 2px;
+}
+.card-name {
+  font-weight: 800;
+  font-size: var(--text-lg);
+  letter-spacing: 0.1em;
+}
+.card-desc {
+  font-size: var(--text-xs);
+  color: oklch(var(--100) / 0.55);
+  line-height: 1.4;
+}
+.card-chip {
+  font-size: var(--text-xs);
+  color: oklch(var(--500));
+  border: var(--border-width-sm) solid oklch(var(--500));
+  border-radius: var(--border-radius);
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+// Offline-ready indicator (hub panel footer, always visible). Three honest
+// states off the service worker's live-cache check: dim "Caching…" while in
+// progress, accent "Offline ready" once every asset is cached, the hint-red
+// for a precache shortfall or a failed worker. English on purpose —
+// infrastructure status, not user-facing copy.
+.view-hub .panel footer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--spacing);
+}
+.offline-status {
+  font-size: var(--text-xs);
+  color: var(--fg-body);
+  opacity: 0.6;
+
+  &.ready {
+    color: var(--color100);
+    opacity: 1;
+  }
+  &.warn {
+    color: oklch(0.75 0.15 29);
+    opacity: 1;
+  }
+}
+.offline-refresh {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  background: oklch(var(--800));
+  color: oklch(var(--100) / 0.7);
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: var(--text-sm);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color100);
+  }
+  &:focus-visible {
+    outline: var(--border-width) solid oklch(var(--500));
+  }
+}
+
+// ===========================================================================
+// QUADRA
+// ===========================================================================
+.view-quadra {
+  .command.primary {
+    background-color: oklch(0.62 0.12 240);
+    color: #03121b;
+    font-weight: 700;
+
+    &:disabled {
+      background: oklch(var(--800));
+      color: oklch(var(--100) / 0.35);
+    }
+  }
+
+  .title.turn.red {
+    color: var(--disc-red);
+  }
+  .title.turn.yellow {
+    color: var(--disc-yellow);
+  }
+
+  .wordmark .logo {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+  .wordmark .logo .d {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+  }
+
+  .hero-discs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  // Game screen: appbar on top, board fills the middle and is centred, hint below.
+  #q-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  // Board — deep-blue frame with round windows; discs fill the windows
+  .board {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: clamp(4px, 1.5%, 10px);
+    padding: clamp(6px, 2%, 14px);
+    width: 100%;
+    max-width: 30rem;
+    aspect-ratio: 7 / 6;
+    background: var(--board-blue);
+    border: 2px solid var(--board-blue-edge);
+    border-radius: clamp(10px, 3%, 20px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.08),
+      var(--box-shadow);
+  }
+  .column {
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    gap: clamp(4px, 1.5%, 10px);
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid #fff;
+      outline-offset: 2px;
+    }
+  }
+  .cell {
+    display: grid;
+    place-items: center;
+  }
+  .board .disc {
+    width: 82%;
+    aspect-ratio: 1;
+    height: auto;
+  }
+  .board .disc.empty {
+    background: var(--hole-empty);
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.55);
+  }
+
+  // Hover preview: the lowest empty slot of the hovered column glows in the
+  // current player's colour. Disabled when the board is locked (AI turn / over).
+  .board:not(.locked) .column:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .board:not(.locked) .column:not(:disabled):hover .disc.next.empty {
+    background: var(--turn);
+    opacity: 0.4;
+  }
+
+  .board .disc.drop {
+    animation: drop 0.32s cubic-bezier(0.36, 1.18, 0.62, 1) both;
+  }
+  .board .disc.win {
+    animation: win-pulse 1.1s ease-in-out infinite;
+  }
+  .final-board {
+    margin-inline: auto;
+  }
+
+  // Setup — segmented two-state controls
+  .segmented {
+    display: grid;
+    grid-auto-flow: column;
+    border: var(--border-width-sm) solid oklch(var(--700));
+    border-radius: var(--border-radius);
+    overflow: hidden;
+  }
+  // Four options don't fit beside the label on a narrow phone, so the row stacks
+  // (label on top, control full-width below) and the segments share the width
+  // equally instead of sizing to their text.
+  .set-row.stack {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+    gap: var(--spacing-sm);
+  }
+  .segmented.quad {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .segmented.quad .seg {
+    padding-inline: 0.5rem;
+    text-align: center;
+  }
+  .seg {
+    padding: 0.55rem 1rem;
+    background: oklch(var(--800));
+    color: oklch(var(--100) / 0.6);
+    border: none;
+    font-weight: 600;
+    font-size: var(--text-sm);
+    cursor: pointer;
+
+    & + .seg {
+      border-left: var(--border-width-sm) solid oklch(var(--700));
+    }
+    &.active {
+      background: oklch(var(--500));
+      color: #03121b;
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid oklch(var(--500));
+      outline-offset: -2px;
+    }
+  }
+
+  // End screen (win / draw)
+  .end-glyph.red {
+    color: var(--disc-red);
+  }
+  .end-glyph.yellow {
+    color: var(--disc-yellow);
+  }
+  .end-glyph.draw {
+    color: oklch(var(--100) / 0.6);
+  }
+  .end-title.win,
+  .end-title.red {
+    color: var(--disc-red);
+  }
+  .end-title.yellow {
+    color: var(--disc-yellow);
+  }
+  .end-title.lose,
+  .end-title.draw {
+    color: oklch(var(--100) / 0.7);
+  }
+  .final {
+    display: grid;
+    justify-items: center;
+  }
+}
+
+// Fall-in animation for the disc just dropped (keyframes must live at top level).
+@keyframes drop {
+  0% {
+    transform: translateY(-280%);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+// Winning four: bright ring + gentle pulse.
+@keyframes win-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px #fff,
+      0 0 14px 2px rgba(255, 255, 255, 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px #fff,
+      0 0 22px 6px rgba(255, 255, 255, 0.85);
+  }
+}
+
+// ===========================================================================
+// CIPHRA
+// ===========================================================================
+.view-ciphra {
+  .command.primary {
+    background-color: oklch(0.62 0.12 185);
+    color: #03181b;
+    font-weight: 700;
+
+    &:disabled {
+      background: oklch(var(--800));
+      color: oklch(var(--100) / 0.35);
+    }
+  }
+
+  // focus ring for the custom peg/slot buttons (commands handle their own)
+  .peg:focus-visible,
+  .slot:focus-visible {
+    outline: var(--border-width) solid oklch(var(--500));
+    outline-offset: 2px;
+  }
+
+  .wordmark .logo {
+    display: inline-grid;
+    grid-auto-flow: column;
+    gap: 4px;
+  }
+  .wordmark .logo i {
+    width: 10px;
+    height: 10px;
+  }
+
+  .hero-pegs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  // Game screen is a fixed-height shell: only the board scrolls, so the palette
+  // and controls stay pinned at the bottom — colours are always one tap away.
+  #c-screen-game {
+    // Fixed height (not min-height) so the board track is forced to scroll
+    // internally instead of growing the page and pushing the palette off-screen.
+    height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    gap: var(--spacing);
+
+    .board {
+      overflow-y: auto;
+      min-height: 0;
+      align-content: start;
+      padding-right: var(--spacing-xs);
+      @extend %scrollbar;
+    }
+  }
+
+  // Board
+  .board {
+    display: grid;
+    gap: var(--spacing-sm);
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1.25rem 1fr auto;
+    align-items: center;
+    gap: var(--spacing);
+    background: oklch(var(--800) / 0.6);
+    border: var(--border-width-sm) solid oklch(var(--700) / 0.6);
+    border-radius: var(--border-radius);
+    padding: var(--padding-sm) var(--padding);
+  }
+  .row.current {
+    border-color: oklch(var(--500));
+    background: oklch(var(--800) / 0.85);
+  }
+  .row.empty {
+    opacity: 0.35;
+  }
+  .rownum {
+    font-size: var(--text-sm);
+    color: oklch(var(--100) / 0.5);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .row .pegs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing-sm);
+    justify-content: start;
+  }
+  .row.current .rownum {
+    color: oklch(var(--500));
+  }
+  .row .hint {
+    font-size: var(--text-xs);
+    color: oklch(var(--500));
+    text-align: right;
+    letter-spacing: 0.04em;
+  }
+
+  // feedback dots: only filled + outline are rendered (no empty dots)
+  .fb {
+    display: grid;
+    grid-template-columns: repeat(2, 10px);
+    gap: 4px;
+    align-content: center;
+  }
+  .fb i {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .fb i.exact {
+    background: var(--fg-body);
+  }
+  .fb i.colour {
+    background: transparent;
+    border: 2px solid oklch(var(--500));
+  }
+
+  // palette tray
+  .tray .pegs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(2.5rem, 1fr));
+    gap: var(--spacing);
+    justify-items: center;
+  }
+  .tray-actions {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--spacing);
+  }
+
+  // Settings
+  .set-row + .set-row {
+    border-top: var(--border-width-sm) solid oklch(var(--700) / 0.5);
+  }
+  .mini-palette {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    justify-content: start;
+  }
+  .stepper {
+    display: grid;
+    grid-auto-flow: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+  .stepper .val {
+    min-width: 1.75rem;
+    text-align: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .step-btn {
+    width: 2.25rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding: 0;
+    font-size: var(--text-xl);
+  }
+  .toggle {
+    width: 3.1rem;
+    height: 1.75rem;
+    border-radius: var(--border-radius);
+    background: oklch(var(--500));
+    position: relative;
+    box-shadow: var(--box-shadow);
+    cursor: pointer;
+    border: none;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      right: 3px;
+      width: 1.35rem;
+      border-radius: 2px;
+      background: var(--color100);
+    }
+    &.off {
+      background: oklch(var(--800));
+    }
+    &.off::after {
+      right: auto;
+      left: 3px;
+      background: oklch(var(--100) / 0.5);
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid oklch(var(--500));
+      outline-offset: 2px;
+    }
+  }
+  .reset-note {
+    font-size: var(--text-xs);
+    color: oklch(var(--100) / 0.45);
+    text-align: center;
+    line-height: 1.4;
+  }
+
+  // End screen (win / lose)
+  .end-title.win {
+    color: oklch(0.84 0.17 150);
+  }
+  .end-title.lose {
+    color: oklch(0.65 0.18 29);
+  }
+  .reveal {
+    display: grid;
+    gap: var(--spacing);
+    justify-items: center;
+  }
+  .reveal .cap {
+    font-size: var(--text-xs);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: oklch(var(--100) / 0.5);
+  }
+  .reveal .pegs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+  }
+  .stat-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing);
+    width: 100%;
+  }
+  .stat {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+  }
+  .stat .big {
+    font-size: var(--text-2xl);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat .lbl {
+    font-size: var(--text-xs);
+    color: oklch(var(--100) / 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+}

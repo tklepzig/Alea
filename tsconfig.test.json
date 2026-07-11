@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "types": ["jest"]
+  },
+  "include": [
+    "games/quadra/game.ts",
+    "games/quadra/game.test.ts",
+    "games/quadra/storage.ts",
+    "games/quadra/storage.test.ts",
+    "games/ciphra/game.ts",
+    "games/ciphra/game.test.ts",
+    "games/ciphra/storage.ts",
+    "games/ciphra/storage.test.ts"
+  ],
+  "exclude": []
+}

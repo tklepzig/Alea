@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "strictNullChecks": true,
+    "lib": ["ES2020", "DOM"],
+    "target": "ES2020",
+    "noEmit": true
+  },
+  "include": ["ui.ts", "shell/**/*.ts", "games/**/*.ts"],
+  "exclude": ["**/*.test.ts"]
+}

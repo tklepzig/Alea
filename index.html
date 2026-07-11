@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <meta name="theme-color" content="#0d1424" />
+    <meta
+      name="viewport"
+      content="user-scalable=yes, initial-scale=1.0, maximum-scale=10.0, width=device-width"
+    />
+    <title>Arca</title>
+    <link href="style.min.css" rel="stylesheet" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <!-- SW registration lives in ui.js (offline-kit) so a registration failure
+         can be caught and surfaced via the offline badge. -->
+    <script type="module" src="ui.js"></script>
+  </head>
+  <body>
+    <main class="app">
+      <!-- ############################################################### -->
+      <!-- HUB — startpage with one card per game                          -->
+      <!-- ############################################################### -->
+      <section class="view view-hub" id="view-hub">
+        <div class="appbar">
+          <span class="iconbtn ghost" aria-hidden="true"></span>
+          <div class="wordmark">
+            <span class="logo">
+              <i class="t red"></i><i class="t yellow"></i><i class="t green"></i><i class="t orange"></i>
+            </span>
+            <span class="name">ARCA</span>
+          </div>
+          <span class="iconbtn ghost" aria-hidden="true"></span>
+        </div>
+
+        <section class="panel">
+          <header>Spiele</header>
+          <article class="game-list">
+            <button class="game-card" id="card-quadra" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok red"></i><i class="tok yellow"></i><i class="tok yellow"></i><i class="tok red"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Quadra</span>
+                <span class="card-desc">Vier in einer Reihe — gegen die KI oder zu zweit.</span>
+              </span>
+              <span class="card-chip" id="chip-quadra" hidden>Spiel läuft</span>
+            </button>
+            <button class="game-card" id="card-ciphra" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok c5"></i><i class="tok c1"></i><i class="tok c3"></i><i class="tok c6"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Ciphra</span>
+                <span class="card-desc">Knacke den geheimen Farbcode.</span>
+              </span>
+              <span class="card-chip" id="chip-ciphra" hidden>Spiel läuft</span>
+            </button>
+          </article>
+          <footer>
+            <span class="offline-status" id="offline-status" hidden></span>
+            <button
+              class="offline-refresh"
+              id="offline-refresh"
+              type="button"
+              aria-label="Re-check offline cache"
+              hidden
+            >↻</button>
+          </footer>
+        </section>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- QUADRA — four-in-a-row (ids prefixed q-)                        -->
+      <!-- ############################################################### -->
+      <section class="view view-quadra" id="view-quadra" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="q-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="q-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="d red"></i><i class="d yellow"></i><i class="d yellow"></i><i class="d red"></i>
+              </span>
+              <span class="name">QUADRA</span>
+            </div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-discs">
+                <span class="disc l red"></span><span class="disc l yellow"></span><span class="disc l red"></span><span class="disc l yellow"></span>
+              </div>
+              <p class="tagline">Bring vier in eine Reihe — bevor dein Gegner es tut.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="q-btn-ai" type="button">Gegen KI</button>
+            <button class="command cta" id="q-btn-local" type="button">Lokal (2 Spieler)</button>
+            <button class="command cta outline" id="q-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="q-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- =========================== SETUP ============================ -->
+        <section class="screen" id="q-screen-setup" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="q-setup-back" type="button" aria-label="Zurück">←</button>
+            <div class="title">Gegen KI</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header>Schwierigkeit</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
+                <div class="segmented quad" id="q-seg-difficulty" role="group" aria-label="Schwierigkeit">
+                  <button class="seg" type="button" data-value="easy">Leicht</button>
+                  <button class="seg" type="button" data-value="medium">Mittel</button>
+                  <button class="seg" type="button" data-value="hard">Schwer</button>
+                  <button class="seg" type="button" data-value="expert">Experte</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel">
+            <header>Erster Zug</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
+                <div class="segmented" id="q-seg-first" role="group" aria-label="Wer beginnt">
+                  <button class="seg" type="button" data-value="human">Du</button>
+                  <button class="seg" type="button" data-value="ai">KI</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="q-btn-start-ai" type="button">Spiel starten</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="q-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="q-game-back" type="button" aria-label="Startseite">←</button>
+            <div class="title turn" id="q-game-title">Rot ist dran</div>
+            <button class="iconbtn" id="q-game-restart" type="button" aria-label="Neu starten">↻</button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="board" id="q-board"></div>
+          </div>
+
+          <p class="annot" id="q-game-annot">Tippe eine Spalte, um einen Stein zu setzen.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="q-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="q-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="q-end-bar">Ergebnis</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="q-end-glyph"></div>
+            <div class="end-title" id="q-end-title"></div>
+            <div class="end-sub" id="q-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="board final-board" id="q-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="q-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="q-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="q-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Zwei Spieler — Rot und Gelb — setzen abwechselnd Steine in die sieben Spalten. Steine fallen jeweils auf die unterste freie Stelle.</p>
+              <div class="legend">
+                <div class="li"><span class="disc s red"></span><span>Rot beginnt.</span></div>
+                <div class="li"><span class="disc s yellow"></span><span>Gelb zieht danach.</span></div>
+              </div>
+              <p class="note">Wer zuerst <b>vier eigene Steine in einer Reihe</b> hat — waagerecht, senkrecht oder diagonal — gewinnt. Ist das Feld voll und niemand hat vier in einer Reihe, endet das Spiel unentschieden.</p>
+              <button class="command primary" id="q-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- CIPHRA — code-breaking (ids prefixed c-)                        -->
+      <!-- ############################################################### -->
+      <section class="view view-ciphra" id="view-ciphra" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="c-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="c-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c6"></i>
+              </span>
+              <span class="name">CIPHRA</span>
+            </div>
+            <button class="iconbtn" id="c-home-settings" type="button" aria-label="Einstellungen">⚙</button>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-pegs">
+                <span class="peg l c5"></span><span class="peg l c1"></span><span class="peg l c3"></span><span class="peg l c6"></span>
+              </div>
+              <p class="tagline">Knacke den geheimen Farbcode.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="c-btn-new" type="button">Neues Spiel</button>
+            <button class="command cta" id="c-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="c-btn-howto" type="button">Spielanleitung</button>
+          </div>
+        </section>
+
+        <!-- ========================== SETTINGS ========================== -->
+        <section class="screen" id="c-screen-settings" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="c-settings-back" type="button" aria-label="Zurück">←</button>
+            <div class="title">Einstellungen</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header>Spielfeld</header>
+            <article>
+              <div class="set-row">
+                <div>
+                  <div class="lab">Farben</div>
+                  <div class="desc">Okabe–Ito, farbblind-sicher</div>
+                  <div class="mini-palette" id="c-colours-preview"></div>
+                </div>
+                <div class="stepper" data-setting="colours">
+                  <button class="command step-btn" type="button" data-step="-1" aria-label="weniger Farben">−</button>
+                  <span class="val" id="c-val-colours">6</span>
+                  <button class="command step-btn" type="button" data-step="1" aria-label="mehr Farben">+</button>
+                </div>
+              </div>
+              <div class="set-row">
+                <div><div class="lab">Code-Länge</div><div class="desc">Stifte im Code</div></div>
+                <div class="stepper" data-setting="codeLength">
+                  <button class="command step-btn" type="button" data-step="-1" aria-label="kürzer">−</button>
+                  <span class="val" id="c-val-codeLength">4</span>
+                  <button class="command step-btn" type="button" data-step="1" aria-label="länger">+</button>
+                </div>
+              </div>
+              <div class="set-row">
+                <div><div class="lab">Versuche</div><div class="desc">Zeilen bis zur Niederlage</div></div>
+                <div class="stepper" data-setting="maxGuesses">
+                  <button class="command step-btn" type="button" data-step="-1" aria-label="weniger Versuche">−</button>
+                  <span class="val" id="c-val-maxGuesses">10</span>
+                  <button class="command step-btn" type="button" data-step="1" aria-label="mehr Versuche">+</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel">
+            <header>Regeln</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wiederholungen erlauben</div><div class="desc">Gleiche Farbe mehrfach</div></div>
+                <button class="toggle" id="c-toggle-repeats" type="button" role="switch" aria-checked="true" aria-label="Wiederholungen erlauben"></button>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+          <p class="reset-note">Änderungen am Spielfeld starten ein neues Spiel.</p>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="c-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="c-game-back" type="button" aria-label="Zurück">←</button>
+            <div class="title" id="c-game-title">Noch 10 Versuche</div>
+            <button class="iconbtn" id="c-game-settings" type="button" aria-label="Einstellungen">⚙</button>
+          </div>
+
+          <div class="board" id="c-board"></div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; gap: var(--spacing)">
+              <div class="tray"><div class="pegs" id="c-palette"></div></div>
+              <div class="tray-actions">
+                <button class="command outline" id="c-btn-undo" type="button">Zurück</button>
+                <button class="command primary" id="c-btn-check" type="button" disabled>Prüfen</button>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+          <p class="annot">Farbe antippen zum Setzen · Feld antippen zum Leeren</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="c-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="c-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="c-end-bar">Ergebnis</div>
+            <button class="iconbtn" id="c-end-settings" type="button" aria-label="Einstellungen">⚙</button>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="c-end-glyph"></div>
+            <div class="end-title" id="c-end-title"></div>
+            <div class="end-sub" id="c-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="reveal">
+              <span class="cap">der geheime Code war</span>
+              <span class="pegs" id="c-reveal"></span>
+              <div class="stat-row" id="c-stats" hidden></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="c-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="c-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ======================= HOW TO PLAY ======================= -->
+        <dialog class="howto" id="c-howto">
+          <section class="panel">
+            <header>Spielanleitung</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Errate die geheime Farbreihe. Nach jedem Versuch bekommst du Hinweis-Stifte:</p>
+              <div class="legend pegs-legend">
+                <div class="li"><span class="fb" style="grid-template-columns: 10px"><i class="exact"></i></span><span><b>Gefüllt</b> — richtige Farbe, richtige Position</span></div>
+                <div class="li"><span class="fb" style="grid-template-columns: 10px"><i class="colour"></i></span><span><b>Umrandet</b> — richtige Farbe, falsche Position</span></div>
+              </div>
+              <p class="note">Weniger Stifte als die Code-Länge → einige Farben sind gar nicht im Code. Der Hinweis verrät nicht, <i>welcher</i> Stift — das ist das Rätsel.</p>
+              <button class="command primary" id="c-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+    </main>
+  </body>
+</html>

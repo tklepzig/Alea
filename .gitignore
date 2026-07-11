@@ -1,0 +1,7 @@
+node_modules/
+.venv/
+sw.js
+ui.js
+style.min.css
+style.min.css.map
+PLAN.md

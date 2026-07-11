@@ -1,0 +1,30 @@
+{
+  "name": "arca",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Offline game collection (German UI): four-in-a-row and a code-breaking game in one PWA. Built on the Ada framework.",
+  "scripts": {
+    "start": "npx --yes live-server .",
+    "build": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit && sass --load-path=node_modules --quiet-deps style.scss:style.min.css -s compressed --no-source-map && offline-kit build",
+    "verify:offline": "offline-kit verify",
+    "smoke:offline": "node scripts/offline-smoke.mjs",
+    "test": "tsc -p tsconfig.test.json --noEmit && npx --yes jest",
+    "dev": "npm run build && npx --yes concurrently -n tsc,sass,pwa,server -c cyan,magenta,yellow,green \"npm run tsc:watch\" \"npm run style:watch\" \"npm run pwa:watch\" \"npm run start\"",
+    "dev:no-sw": "npm run build && npx --yes concurrently -n tsc,sass,pwa,server -c cyan,magenta,yellow,green \"npm run tsc:watch\" \"npm run style:watch\" \"npm run pwa:watch\" \"npm run start -- --middleware=$PWD/scripts/disable-sw.js\"",
+    "tsc:watch": "tsc -w --noEmit",
+    "style:watch": "sass --load-path=node_modules --quiet-deps --watch style.scss:style.min.css -s compressed",
+    "pwa:watch": "offline-kit build --watch"
+  },
+  "dependencies": {
+    "@tklepzig/offline-kit": "^0.1.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.7.0",
+    "ada-ui": "^6.1.0",
+    "playwright": "^1.50.0",
+    "sass": "^1.99.0",
+    "ts-jest": "^29.4.9",
+    "typescript": "^6.0.3"
+  }
+}
