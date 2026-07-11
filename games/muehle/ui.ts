@@ -34,6 +34,9 @@ const GAME_KEY = `${APP_ID}.muehle.game`;
 const SETTINGS_KEY = `${APP_ID}.muehle.settings`;
 
 const AI_DELAY_MS = 550;
+// Gap before the mill's capture step, so the placing/sliding animation (~0.7s,
+// see `.moving` in style.scss) finishes before the board redraws to take a stone.
+const CONTINUE_MS = 800;
 const END_DELAY_MS = 1150;
 
 function loadSettings(): Settings {
@@ -113,13 +116,18 @@ let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Move feedback so the AI's action is easy to follow: the last placement/slide
-// stays glowing until the next move, the affected stone pops in, and a captured
-// stone leaves a fading ghost so you see which one was taken.
+// stays glowing until the next move; a slid stone travels in from its origin (a
+// placed one pops in, since it has no origin); and a captured stone leaves a
+// fading ghost so you see which one was taken. `moveAnim` is consumed after one
+// render so it plays exactly once.
 let lastMove: { from: number | null; to: number } | null = null;
-let arriveAt: number | null = null; // consumed after one render
+let moveAnim: { at: number; sx: number; sy: number; slide: boolean } | null = null;
 let capturedGhost: { at: number; player: Player } | null = null;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
-const CAPTURE_FLASH_MS = 480;
+const CAPTURE_FLASH_MS = 720;
+// A stone is 82% of a point which is 12% of the board, so its width is 9.84% of
+// the board; translating by (board-% distance ÷ 9.84) × 100 shifts it that far.
+const SLIDE_PER_BOARD_PCT = 100 / (12 * 0.82);
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`m-${id}`) as T;
@@ -137,21 +145,26 @@ function setCapturedGhost(ghost: { at: number; player: Player } | null): void {
 
 function clearHighlights(): void {
   lastMove = null;
-  arriveAt = null;
+  moveAnim = null;
   setCapturedGhost(null);
 }
 
-/** Record what the just-applied move should highlight. A placement/slide lights
- *  its path and pops the stone; a removal ghosts the taken enemy stone while the
+/** Record what the just-applied move should show. A placement pops in; a slide
+ *  travels from its origin; a removal ghosts the taken enemy stone while the
  *  mill-forming move stays lit. */
 function noteMove(move: Move, mover: Player): void {
   if (move.kind === "place") {
     lastMove = { from: null, to: move.to };
-    arriveAt = move.to;
+    moveAnim = { at: move.to, sx: 0, sy: 0, slide: false };
     setCapturedGhost(null);
   } else if (move.kind === "move") {
     lastMove = { from: move.from, to: move.to };
-    arriveAt = move.to;
+    moveAnim = {
+      at: move.to,
+      sx: (POS[move.from].x - POS[move.to].x) * SLIDE_PER_BOARD_PCT,
+      sy: (POS[move.from].y - POS[move.to].y) * SLIDE_PER_BOARD_PCT,
+      slide: true,
+    };
     setCapturedGhost(null);
   } else {
     setCapturedGhost({ at: move.at, player: otherPlayer(mover) });
@@ -250,7 +263,15 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
     if (owner) {
       const stone = document.createElement("span");
       stone.className = `muehle-stone ${owner}`;
-      if (interactive && arriveAt === index) stone.classList.add("arrive");
+      if (interactive && moveAnim && moveAnim.at === index) {
+        if (moveAnim.slide) {
+          stone.classList.add("moving");
+          stone.style.setProperty("--slide-x", `${moveAnim.sx}%`);
+          stone.style.setProperty("--slide-y", `${moveAnim.sy}%`);
+        } else {
+          stone.classList.add("arrive");
+        }
+      }
       point.append(stone);
     } else if (interactive && capturedGhost && capturedGhost.at === index) {
       // The captured stone is already gone from state — ghost it so the player
@@ -292,14 +313,21 @@ function annotText(state: GameState): string {
   return "Wähle einen Stein und dann sein Ziel.";
 }
 
-function renderGame(): void {
+// Update only the title + hint — used when scheduling the AI, so its "denkt"
+// text can change without a board rebuild cutting off an in-flight slide.
+function paintStatus(): void {
   if (!game) return;
   const title = byId("game-title");
   title.textContent = titleText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+}
+
+function renderGame(): void {
+  if (!game) return;
+  paintStatus();
   renderBoard(byId("board"), game, true);
-  arriveAt = null; // consume: the arrival plays on exactly one render
+  moveAnim = null; // consume: the slide plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +336,7 @@ function renderGame(): void {
 function onPointClick(index: number): void {
   if (!game || game.status !== "playing" || aiThinking || isAiTurn(game)) return;
   setCapturedGhost(null); // a tap means the flash has served its purpose
+  moveAnim = null;
   const moves = legalMoves(game);
 
   if (game.pendingCapture) {
@@ -362,12 +391,16 @@ function maybeScheduleAi(): void {
   if (!game || game.status !== "playing" || !isAiTurn(game)) return;
   aiThinking = true;
   selected = null;
-  renderGame(); // lock the board, show "KI denkt …"
+  // Repaint only the status text — the board is already rendered (and locked)
+  // from the move that led here; a rebuild would cut off its slide.
+  paintStatus();
+  // Before a mill's capture step, wait out the placing/sliding animation.
+  const gap = game.pendingCapture ? CONTINUE_MS : AI_DELAY_MS;
   aiTimer = setTimeout(() => {
     aiThinking = false;
     if (!game || game.status !== "playing" || !isAiTurn(game)) return;
     step(getAiMove(game));
-  }, AI_DELAY_MS);
+  }, gap);
 }
 
 // ---------------------------------------------------------------------------

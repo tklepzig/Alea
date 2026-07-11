@@ -33,8 +33,11 @@ import {
 const GAME_KEY = `${APP_ID}.dame.game`;
 const SETTINGS_KEY = `${APP_ID}.dame.settings`;
 
-// How long the AI "thinks" before each step — avoids an instant, jarring reply.
+// How long the AI "thinks" before its move — avoids an instant, jarring reply.
 const AI_DELAY_MS = 550;
+// Gap between the hops of a multi-jump — long enough for the slide (~0.7s, see
+// `.moving` in style.scss) to finish before the next hop redraws the board.
+const CONTINUE_MS = 800;
 // How long the final board stays visible before the end screen slides in.
 const END_DELAY_MS = 1150;
 
@@ -68,14 +71,18 @@ let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Move feedback so the AI's action is easy to follow: the last move's origin and
-// destination stay glowing until the next move, the moved piece plays a one-shot
-// arrival, and a captured piece leaves a fading ghost so you see what was taken.
+// destination stay glowing until the next move, the moved piece slides in from
+// its origin, and a captured piece leaves a fading ghost so you see what was
+// taken. `moveAnim` carries the slide offset (in % of a piece width) and is
+// consumed after one render (Quadra's `lastDrop` trick), so it plays exactly once.
 let lastMove: { from: Square | null; to: Square } | null = null;
-let arriveAt: Square | null = null; // consumed after one render (Quadra's trick)
+let moveAnim: { at: Square; sx: number; sy: number } | null = null;
 let capturedGhost: { at: Square; player: Player } | null = null;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
-// Long enough to read, short enough to finish before the next AI hop (~550ms).
-const CAPTURE_FLASH_MS = 480;
+const CAPTURE_FLASH_MS = 720;
+// One board cell = 125% of a piece's own width (the piece is 80% of the cell), so
+// translating a piece by this per column/row moves it exactly one cell.
+const SLIDE_UNIT = 125;
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`d-${id}`) as T;
@@ -97,7 +104,7 @@ function setCapturedGhost(ghost: { at: Square; player: Player } | null): void {
 
 function clearHighlights(): void {
   lastMove = null;
-  arriveAt = null;
+  moveAnim = null;
   setCapturedGhost(null);
 }
 
@@ -180,7 +187,11 @@ function renderBoard(
       if (piece) {
         const disc = document.createElement("span");
         disc.className = `dame-piece ${piece.player}${piece.kind === "king" ? " king" : ""}`;
-        if (interactive && sameSquare(arriveAt, square)) disc.classList.add("arrive");
+        if (interactive && moveAnim && sameSquare(moveAnim.at, square)) {
+          disc.classList.add("moving");
+          disc.style.setProperty("--slide-x", `${moveAnim.sx}%`);
+          disc.style.setProperty("--slide-y", `${moveAnim.sy}%`);
+        }
         cell.append(disc);
       } else if (interactive && capturedGhost && sameSquare(capturedGhost.at, square)) {
         // The captured piece is already gone from state — draw a fading ghost of
@@ -212,14 +223,22 @@ function annotText(state: GameState): string {
   return "Wähle einen Stein und dann sein Ziel.";
 }
 
-function renderGame(): void {
+// Update only the title + hint. Used when the AI is scheduled so the "KI denkt"
+// text can change without rebuilding the board — a rebuild would cut off an
+// in-flight slide.
+function paintStatus(): void {
   if (!game) return;
   const title = byId("game-title");
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+}
+
+function renderGame(): void {
+  if (!game) return;
+  paintStatus();
   renderBoard(byId("board"), game, true);
-  arriveAt = null; // consume: the arrival plays on exactly one render
+  moveAnim = null; // consume: the slide plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -256,9 +275,13 @@ function step(move: Move): void {
   if (!game) return;
   const mover = game.currentPlayer;
   game = applyMove(game, move);
-  // Feedback: glow the path, pop the arrival, ghost the captured piece.
+  // Feedback: glow the path, slide the piece in from its origin, ghost the taken piece.
   lastMove = { from: move.from, to: move.to };
-  arriveAt = move.to;
+  moveAnim = {
+    at: move.to,
+    sx: (move.from.col - move.to.col) * SLIDE_UNIT,
+    sy: (move.from.row - move.to.row) * SLIDE_UNIT,
+  };
   setCapturedGhost(move.captured ? { at: move.captured, player: otherPlayer(mover) } : null);
 
   if (game.status !== "playing") {
@@ -285,12 +308,16 @@ function maybeScheduleAi(): void {
   if (!game || game.status !== "playing" || !isAiTurn(game)) return;
   aiThinking = true;
   selected = null;
-  renderGame(); // lock the board and show "KI denkt …"
+  // Only repaint the status text — the board is already rendered (and locked)
+  // from the move that led here; a full rebuild would cut off its slide.
+  paintStatus();
+  // Mid multi-jump, wait out the current hop's slide before the next redraw.
+  const gap = game.mustContinueFrom ? CONTINUE_MS : AI_DELAY_MS;
   aiTimer = setTimeout(() => {
     aiThinking = false;
     if (!game || game.status !== "playing" || !isAiTurn(game)) return;
     step(getAiMove(game));
-  }, AI_DELAY_MS);
+  }, gap);
 }
 
 // ---------------------------------------------------------------------------

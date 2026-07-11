@@ -839,8 +839,26 @@ button.peg {
 
 // Shared move-feedback keyframes for the board games (Dame, Mühle, Halma). Kept
 // at the top level — Sass would nest them inside a `.view-*` scope and they'd
-// silently never apply. `piece-arrive` pops a stone into its destination;
-// `capture-flash` fades out a ghost of a piece the AI just took.
+// silently never apply. `piece-slide` travels a stone from its origin (set per
+// move via --slide-x/--slide-y, in % of the stone's own width) to its resting
+// place, so you can watch the AI move. `piece-arrive` pops a stone in where
+// there's no origin to slide from (a Mühle placement). `capture-flash` fades out
+// a ghost of a piece the AI just took.
+@keyframes piece-slide {
+  from {
+    transform: translate(var(--slide-x, 0), var(--slide-y, 0));
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+// The moved stone travels in from its origin. ~0.7s reads as a clear glide;
+// tune here if you want it slower or snappier.
+.moving {
+  animation: piece-slide 0.7s cubic-bezier(0.33, 0.9, 0.35, 1) both;
+  position: relative;
+  z-index: 2; // ride above neighbouring stones while crossing them
+}
 @keyframes piece-arrive {
   0% {
     transform: scale(0.62);
@@ -1245,7 +1263,7 @@ button.peg {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.16),
       0 0 0 3px rgba(255, 90, 90, 0.9);
-    animation: capture-flash 0.46s ease-out forwards;
+    animation: capture-flash 0.6s ease-out forwards;
   }
 
   .end-glyph.red {
@@ -1419,7 +1437,7 @@ button.peg {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.16),
       0 0 0 3px rgba(255, 90, 90, 0.9);
-    animation: capture-flash 0.46s ease-out forwards;
+    animation: capture-flash 0.6s ease-out forwards;
   }
 
   .end-glyph.red {

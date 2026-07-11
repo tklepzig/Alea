@@ -35,8 +35,9 @@ const SETTINGS_KEY = `${APP_ID}.halma.settings`;
 // The AI "thinks" briefly, then plays its move; a multi-hop jump animates one
 // hop at a time.
 const AI_DELAY_MS = 550;
-// Slow enough between jump hops to follow the path (each hop also pops in).
-const AI_HOP_MS = 460;
+// Gap between jump hops — long enough for each hop's slide (~0.7s, see `.moving`
+// in style.scss) to finish before the next hop redraws the board.
+const AI_HOP_MS = 800;
 const END_DELAY_MS = 1150;
 
 function loadSettings(): Settings {
@@ -70,10 +71,13 @@ let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
 // Move feedback: the last hop's origin and destination stay lit until the next
-// move, and the moved stone pops into place — so a multi-hop AI turn is easy to
-// follow. (Halma has no captures, so no capture ghost.)
+// move, and the moved stone slides in from its origin — so a multi-hop AI turn
+// is easy to follow. (Halma has no captures, so no capture ghost.) `moveAnim`
+// carries the slide offset and is consumed after one render, so it plays once.
 let lastMove: { from: Square; to: Square } | null = null;
-let arriveAt: Square | null = null; // consumed after one render
+let moveAnim: { at: Square; sx: number; sy: number } | null = null;
+// One cell = 100/84 × 100% of a stone's width (the stone is 84% of the cell).
+const SLIDE_UNIT = (100 / 84) * 100;
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`h-${id}`) as T;
@@ -84,13 +88,17 @@ const sameSquare = (first: Square | null, second: Square | null): boolean =>
 
 function clearHighlights(): void {
   lastMove = null;
-  arriveAt = null;
+  moveAnim = null;
 }
 
 function noteMove(move: Move): void {
   if (move.kind === "step" || move.kind === "jump") {
     lastMove = { from: move.from, to: move.to };
-    arriveAt = move.to;
+    moveAnim = {
+      at: move.to,
+      sx: (move.from.col - move.to.col) * SLIDE_UNIT,
+      sy: (move.from.row - move.to.row) * SLIDE_UNIT,
+    };
   }
 }
 
@@ -179,7 +187,11 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
       if (owner) {
         const stone = document.createElement("span");
         stone.className = `halma-stone ${owner}`;
-        if (interactive && sameSquare(arriveAt, square)) stone.classList.add("arrive");
+        if (interactive && moveAnim && sameSquare(moveAnim.at, square)) {
+          stone.classList.add("moving");
+          stone.style.setProperty("--slide-x", `${moveAnim.sx}%`);
+          stone.style.setProperty("--slide-y", `${moveAnim.sy}%`);
+        }
         cell.append(stone);
       }
       container.append(cell);
@@ -203,14 +215,21 @@ function annotText(state: GameState): string {
   return "Wähle einen Stein: ein Schritt oder ein Sprung ins Ziel.";
 }
 
-function renderGame(): void {
+// Update only the title + hint — used when scheduling the AI so its "denkt" text
+// can change without a board rebuild cutting off an in-flight slide.
+function paintStatus(): void {
   if (!game) return;
   const title = byId("game-title");
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+}
+
+function renderGame(): void {
+  if (!game) return;
+  paintStatus();
   renderBoard(byId("board"), game, true);
-  arriveAt = null; // consume: the arrival plays on exactly one render
+  moveAnim = null; // consume: the slide plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +321,9 @@ function maybeScheduleAi(): void {
   if (!game || game.status !== "playing" || !isAiTurn(game)) return;
   aiThinking = true;
   selected = null;
-  renderGame(); // lock, show "KI denkt …"
+  // Repaint only the status text — the board is already rendered (and locked)
+  // from the move that led here; a rebuild would cut off its slide.
+  paintStatus();
   aiTimer = setTimeout(() => {
     if (!game || game.status !== "playing" || !isAiTurn(game)) {
       aiThinking = false;
