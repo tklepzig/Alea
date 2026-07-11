@@ -530,16 +530,6 @@ button.peg {
     grid-auto-flow: column;
     gap: 4px;
   }
-  .wordmark .logo .t {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-  .t.red { background: var(--disc-red); }
-  .t.yellow { background: var(--disc-yellow); }
-  .t.green { background: #009e73; }
-  .t.orange { background: #e69f00; }
-
   .command.primary {
     background-color: oklch(0.62 0.12 240);
     color: #03121b;
@@ -588,14 +578,128 @@ button.peg {
 }
 .card-tokens .tok.red { background: var(--disc-red); }
 .card-tokens .tok.yellow { background: var(--disc-yellow); }
-.card-tokens .tok.dame-red { background: var(--disc-red); }
-.card-tokens .tok.dame-black { background: #2c2c36; }
-.card-tokens .tok.mu-red { background: var(--disc-red); }
-.card-tokens .tok.mu-blue { background: #2f80ed; }
-.card-tokens .tok.ha-red { background: var(--disc-red); }
-.card-tokens .tok.ha-blue { background: #2f80ed; }
-.card-tokens .tok.so-peg { background: #6c6cf0; }
-.card-tokens .tok.so-hole { background: transparent; box-shadow: inset 0 0 0 2px oklch(var(--700)); }
+
+// ---------------------------------------------------------------------------
+// Per-game emblems — one distinct mark per game, reused at two sizes: the hub
+// card (~34px) and the in-game wordmark (~22px). Geometry is percentage-based so
+// a single definition scales to both. Quadra and Ciphra keep their token
+// clusters (above / in their view blocks); these cover the four newer games.
+// ---------------------------------------------------------------------------
+.game-card > .emblem {
+  width: 34px;
+  height: 34px;
+}
+.wordmark .logo .emblem {
+  width: 22px;
+  height: 22px;
+}
+.emblem {
+  position: relative;
+  display: inline-block;
+  flex: none;
+}
+.emblem i {
+  position: absolute;
+}
+
+// Dame — a kinged (stacked) checker: red disc riding a charcoal one.
+.emblem.dame i {
+  width: 68%;
+  height: 68%;
+  left: 16%;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.4);
+}
+.emblem.dame .back {
+  top: 30%;
+  background: #2c2c36;
+}
+.emblem.dame .front {
+  top: 2%;
+  background: var(--disc-red);
+}
+
+// Mühle — the nested mill-board squares with a stone at the centre.
+.emblem.muehle {
+  border: 2px solid #3aa9b8;
+  border-radius: 2px;
+}
+.emblem.muehle .inner {
+  inset: 26%;
+  border: 2px solid #3aa9b8;
+  border-radius: 1px;
+}
+.emblem.muehle .dot {
+  inset: 42%;
+  border-radius: 50%;
+  background: var(--disc-red);
+}
+
+// Halma — a diagonal trail racing from the near corner to the far one.
+.emblem.halma i {
+  width: 36%;
+  height: 36%;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.emblem.halma .a {
+  left: 2%;
+  top: 62%;
+  background: #2f80ed;
+}
+.emblem.halma .b {
+  left: 32%;
+  top: 32%;
+  background: #7a67c8;
+}
+.emblem.halma .c {
+  left: 62%;
+  top: 2%;
+  background: var(--disc-red);
+}
+
+// Solo-Halma — the peg-solitaire cross: four pegs around an empty centre hole.
+.emblem.solo i {
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: #6c6cf0;
+}
+.emblem.solo .up { left: 35%; top: 3%; }
+.emblem.solo .down { left: 35%; top: 67%; }
+.emblem.solo .left { left: 3%; top: 35%; }
+.emblem.solo .right { left: 67%; top: 35%; }
+.emblem.solo .mid {
+  left: 35%;
+  top: 35%;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px #6c6cf0;
+}
+
+// Alea (the app) — a die: five pips in the four game colours plus a blue centre.
+.alea-die {
+  position: relative;
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #ece7de;
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+}
+.alea-die i {
+  position: absolute;
+  width: 22%;
+  height: 22%;
+  border-radius: 50%;
+}
+.alea-die i:nth-child(1) { left: 16%; top: 16%; background: #e23c43; }
+.alea-die i:nth-child(2) { right: 16%; top: 16%; background: #f4c542; }
+.alea-die i:nth-child(3) { left: 39%; top: 39%; background: #1a7abf; }
+.alea-die i:nth-child(4) { left: 16%; bottom: 16%; background: #009e73; }
+.alea-die i:nth-child(5) { right: 16%; bottom: 16%; background: #e69f00; }
+
 .card-body {
   display: grid;
   gap: 2px;
@@ -1147,24 +1251,6 @@ button.peg {
     color: oklch(var(--100) / 0.85);
   }
 
-  .wordmark .logo {
-    display: inline-grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-  .wordmark .logo .dm {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-  }
-  .dm.red {
-    background: var(--disc-red);
-  }
-  .dm.black {
-    background: #2c2c36;
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
-  }
-
   .hero-discs {
     display: grid;
     grid-auto-flow: column;
@@ -1288,23 +1374,6 @@ button.peg {
   }
   .title.turn.blue {
     color: #6aa8f5;
-  }
-
-  .wordmark .logo {
-    display: inline-grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-  .wordmark .logo .mu {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-  }
-  .mu.red {
-    background: var(--disc-red);
-  }
-  .mu.blue {
-    background: #2f80ed;
   }
 
   .hero-discs {
@@ -1466,23 +1535,6 @@ button.peg {
     color: #6aa8f5;
   }
 
-  .wordmark .logo {
-    display: inline-grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-  .wordmark .logo .ha {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-  }
-  .ha.red {
-    background: var(--disc-red);
-  }
-  .ha.blue {
-    background: #2f80ed;
-  }
-
   .hero-discs {
     display: grid;
     grid-auto-flow: column;
@@ -1612,22 +1664,6 @@ button.peg {
 // grid stays square and the cross emerges.
 // ===========================================================================
 .view-solohalma {
-  .wordmark .logo {
-    display: inline-grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-  .wordmark .logo .so {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    background: #6c6cf0;
-  }
-  .so.hole {
-    background: transparent;
-    box-shadow: inset 0 0 0 2px oklch(var(--700));
-  }
-
   .hero-discs {
     display: grid;
     grid-auto-flow: column;

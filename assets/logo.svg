@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Alea (Latin: dice / game of chance): four game tokens in a dark
-frame. Top row = Quadra's discs, bottom row = Ciphra's pegs. -->
+  <!-- Alea (Latin: dice / "alea iacta est"): a single die, its five pips in the
+       four game-token colours plus a blue centre — one mark for the many-games
+       hub, distinct from any individual game's emblem. -->
   <rect x="16" y="16" width="480" height="480" rx="104" fill="#0d1424" stroke="#2a3550" stroke-width="8" />
-  <g>
-    <circle cx="180" cy="180" r="62" fill="#e23c43" />
-    <circle cx="332" cy="180" r="62" fill="#f4c542" />
-    <circle cx="180" cy="332" r="62" fill="#009e73" />
-    <circle cx="332" cy="332" r="62" fill="#e69f00" />
-  </g>
+  <rect x="136" y="136" width="240" height="240" rx="46" fill="#ece7de" />
+  <circle cx="196" cy="196" r="26" fill="#e23c43" />
+  <circle cx="316" cy="196" r="26" fill="#f4c542" />
+  <circle cx="256" cy="256" r="26" fill="#1a7abf" />
+  <circle cx="196" cy="316" r="26" fill="#009e73" />
+  <circle cx="316" cy="316" r="26" fill="#e69f00" />
 </svg>
