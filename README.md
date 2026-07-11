@@ -1,8 +1,8 @@
-# Arca
+# Alea
 
-> **Arca** is a working title — the app identity is centralised in
-> `shell/app.ts` (plus `manifest.webmanifest`, `index.html` title/wordmark and
-> the icon SVGs) so a rename stays a small change.
+> **Alea** — lateinisch für *Würfel / Glücksspiel* („alea iacta est"). Die
+> App-Identität ist in `shell/app.ts` zentralisiert (plus
+> `manifest.webmanifest`, `index.html` Titel/Wortmarke und die Icon-SVGs).
 
 Kleine Offline-Spielesammlung (deutsche Oberfläche) als PWA: mehrere Spiele in
 einer App, mit einer Startseite zur Auswahl. Jedes Spiel speichert seinen
@@ -29,7 +29,7 @@ nicht übernommen (anderer Origin-Pfad, getrennter localStorage).
   (`shell/game-controller.ts`) und werden einmal beim Boot initialisiert.
 - **Theming**: Hub + Quadra laufen auf Adas Blau; Ciphra behält Grün über eine
   Body-Klasse (`theme-ciphra`), die die Ada-Farbvariablen im Scope neu ableitet.
-- **Persistenz**: localStorage, Keys namespaced als `arca.<spiel>.<was>`
+- **Persistenz**: localStorage, Keys namespaced als `alea.<spiel>.<was>`
   (`shell/safe-storage.ts` degradiert sauber, wenn Storage nicht verfügbar ist).
 - **Offline**: [`@tklepzig/offline-kit`](https://github.com/tklepzig/offline-kit)
   (Service Worker mit content-gehashtem Precache-Manifest, Selbstheilung ab
@@ -41,8 +41,7 @@ Zwei Prüfungen sichern die 100%-Offline-Fähigkeit ab (beide laufen im Deploy):
 
 1. `npm run verify:offline` — statischer Abgleich: alles, was `index.html`,
    CSS und Web-App-Manifest referenzieren, existiert und steht im
-   Precache-Manifest des Service Workers (`offline-kit verify`, ab
-   offline-kit 0.2.0).
+   Precache-Manifest des Service Workers (`offline-kit verify`, offline-kit ≥ 0.2.0).
 2. `npm run smoke:offline` — echter Browser-Test (Playwright): App laden,
    auf „✓ Offline ready" warten, Server killen, neu laden — Hub und beide
    Spiele müssen vollständig aus dem Cache funktionieren, ohne einen einzigen

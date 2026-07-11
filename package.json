@@ -1,5 +1,5 @@
 {
-  "name": "arca",
+  "name": "alea",
   "version": "0.1.0",
   "type": "module",
   "description": "Offline game collection (German UI): four-in-a-row and a code-breaking game in one PWA. Built on the Ada framework.",
@@ -16,7 +16,7 @@
     "pwa:watch": "offline-kit build --watch"
   },
   "dependencies": {
-    "@tklepzig/offline-kit": "^0.1.2"
+    "@tklepzig/offline-kit": "^0.2.0"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
