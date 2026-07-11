@@ -1389,10 +1389,12 @@ button.peg {
       border-radius: 50%;
     }
   }
+  // Stones sit a bit smaller than the point so the 24-point board doesn't feel
+  // crowded. Keep in sync with SLIDE_PER_BOARD_PCT in games/muehle/ui.ts.
   .mp .muehle-stone {
     position: absolute;
-    width: 82%;
-    height: 82%;
+    width: 70%;
+    height: 70%;
   }
 
   // Empty destinations (placement or slide) light their node; playable and
