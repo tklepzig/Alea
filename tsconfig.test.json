@@ -24,7 +24,11 @@
     "games/halma/game.ts",
     "games/halma/game.test.ts",
     "games/halma/storage.ts",
-    "games/halma/storage.test.ts"
+    "games/halma/storage.test.ts",
+    "games/solohalma/game.ts",
+    "games/solohalma/game.test.ts",
+    "games/solohalma/storage.ts",
+    "games/solohalma/storage.test.ts"
   ],
   "exclude": []
 }

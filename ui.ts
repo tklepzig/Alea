@@ -16,8 +16,9 @@ import { initCiphra } from "./games/ciphra/ui.js";
 import { initDame } from "./games/dame/ui.js";
 import { initMuehle } from "./games/muehle/ui.js";
 import { initHalma } from "./games/halma/ui.js";
+import { initSolohalma } from "./games/solohalma/ui.js";
 
-type GameId = "quadra" | "ciphra" | "dame" | "muehle" | "halma";
+type GameId = "quadra" | "ciphra" | "dame" | "muehle" | "halma" | "solohalma";
 type ViewId = "hub" | GameId;
 
 interface GameEntry {
@@ -75,6 +76,13 @@ const games: GameEntry[] = [
     themeClass: "theme-halma",
     themeColor: "#2e1622",
     controller: initHalma({ onExit: goHub }),
+  },
+  {
+    id: "solohalma",
+    name: "Solo-Halma",
+    themeClass: "theme-solohalma",
+    themeColor: "#1a1c3a",
+    controller: initSolohalma({ onExit: goHub }),
   },
 ];
 

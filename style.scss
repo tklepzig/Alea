@@ -43,6 +43,15 @@ body.theme-halma {
   --c-base-light: 0.14;
 }
 
+body.theme-solohalma {
+  @extend %colourShades;
+  --hue: 265;
+  --l-base: 0.36;
+  --c-base: 0.1;
+  --l-base-light: 0.46;
+  --c-base-light: 0.13;
+}
+
 // Self-hosted Open Sans (Ada's default family) so the PWA renders identically
 // offline. Refresh with scripts/update-fonts.sh.
 @font-face {
@@ -427,6 +436,30 @@ body.theme-halma {
   height: 44px;
 }
 
+// Solo-Halma: an indigo peg; the `.hole` variant is an empty socket (used in the
+// hero, legend and wordmark). On the board a peg fills its hole (see
+// .view-solohalma).
+.solo-peg {
+  display: inline-block;
+  border-radius: 50%;
+  background: #6c6cf0;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+}
+.solo-peg.hole {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px oklch(var(--700));
+}
+.solo-peg.s {
+  width: 22px;
+  height: 22px;
+}
+.solo-peg.l {
+  width: 44px;
+  height: 44px;
+}
+
 .peg {
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.45);
@@ -561,6 +594,8 @@ button.peg {
 .card-tokens .tok.mu-blue { background: #2f80ed; }
 .card-tokens .tok.ha-red { background: var(--disc-red); }
 .card-tokens .tok.ha-blue { background: #2f80ed; }
+.card-tokens .tok.so-peg { background: #6c6cf0; }
+.card-tokens .tok.so-hole { background: transparent; box-shadow: inset 0 0 0 2px oklch(var(--700)); }
 .card-body {
   display: grid;
   gap: 2px;
@@ -1465,5 +1500,131 @@ button.peg {
   .final-board {
     margin-inline: auto;
     max-width: 20rem;
+  }
+}
+
+// ===========================================================================
+// SOLO-HALMA — peg solitaire on the English cross (7×7 minus the corners).
+// Indigo theme (body.theme-solohalma). Cut corners are invisible spacers so the
+// grid stays square and the cross emerges.
+// ===========================================================================
+.view-solohalma {
+  .wordmark .logo {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+  .wordmark .logo .so {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #6c6cf0;
+  }
+  .so.hole {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px oklch(var(--700));
+  }
+
+  .hero-discs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  #s-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  .solo-board {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    width: 100%;
+    max-width: 24rem;
+    aspect-ratio: 1;
+    gap: clamp(2px, 0.8%, 6px);
+    padding: clamp(5px, 1.8%, 12px);
+    background: oklch(var(--950));
+    border: 2px solid oklch(var(--700));
+    border-radius: clamp(10px, 3%, 18px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.05),
+      var(--box-shadow);
+  }
+  .sw {
+    // A cut corner — occupies its grid cell but shows nothing.
+    aspect-ratio: 1;
+  }
+  .sh {
+    position: relative;
+    aspect-ratio: 1;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
+    // The empty socket, shown when the hole has no peg.
+    &::before {
+      content: "";
+      position: absolute;
+      inset: 33%;
+      border-radius: 50%;
+      background: oklch(var(--800) / 0.6);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid #fff;
+      outline-offset: -2px;
+      border-radius: 50%;
+    }
+  }
+  .sh .solo-peg {
+    position: absolute;
+    inset: 14%;
+    width: auto;
+    height: auto;
+  }
+  // A landing hole for the picked-up peg lights its socket.
+  .solo-board:not(.locked) .sh.target::before {
+    background: oklch(var(--500));
+    box-shadow: 0 0 0 3px oklch(var(--500) / 0.3);
+  }
+  // Pegs that can jump glow faintly; the picked-up peg is ringed.
+  .solo-board:not(.locked) .solo-peg.jumpable {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      inset 0 -3px 7px rgba(0, 0, 0, 0.4),
+      0 0 0 2px oklch(var(--500) / 0.7);
+  }
+  .sh.selected .solo-peg {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+      0 0 0 3px oklch(var(--500));
+  }
+
+  .solo-actions {
+    display: grid;
+    justify-content: center;
+  }
+
+  .end-glyph.win {
+    color: oklch(var(--500));
+  }
+  .end-glyph.stuck {
+    color: oklch(var(--100) / 0.55);
+  }
+  .final-board {
+    margin-inline: auto;
+    max-width: 18rem;
   }
 }

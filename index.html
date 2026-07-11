@@ -88,6 +88,16 @@
               </span>
               <span class="card-chip" id="chip-halma" hidden>Spiel läuft</span>
             </button>
+            <button class="game-card" id="card-solohalma" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok so-peg"></i><i class="tok so-peg"></i><i class="tok so-hole"></i><i class="tok so-peg"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Solo-Halma</span>
+                <span class="card-desc">Steckhalma-Solitär: springe, bis nur ein Stein bleibt.</span>
+              </span>
+              <span class="card-chip" id="chip-solohalma" hidden>Spiel läuft</span>
+            </button>
           </article>
           <footer>
             <span class="offline-status" id="offline-status" hidden></span>
@@ -819,6 +829,106 @@
               </div>
               <p class="note">Nach einem Sprung darfst du weiterspringen oder stoppen. Sprünge schlagen keine Steine — sie bringen dich nur schneller ans Ziel.</p>
               <button class="command primary" id="h-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- SOLO-HALMA — peg solitaire, single player (ids prefixed s-)     -->
+      <!-- ############################################################### -->
+      <section class="view view-solohalma" id="view-solohalma" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="s-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="s-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="so peg"></i><i class="so peg"></i><i class="so hole"></i><i class="so peg"></i>
+              </span>
+              <span class="name">SOLO-HALMA</span>
+            </div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-discs">
+                <span class="solo-peg l"></span><span class="solo-peg l"></span><span class="solo-peg l hole"></span><span class="solo-peg l"></span>
+              </div>
+              <p class="tagline">Überspringe Steine und nimm sie weg — bis nur einer übrig bleibt.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="s-btn-new" type="button">Neues Spiel</button>
+            <button class="command cta outline" id="s-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="s-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="s-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="s-game-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="s-game-title">Noch 32 Steine</div>
+            <button class="iconbtn" id="s-game-restart" type="button" aria-label="Neu starten">↻</button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="solo-board" id="s-board"></div>
+          </div>
+
+          <div class="solo-actions">
+            <button class="command outline" id="s-btn-undo" type="button">↶ Zurück</button>
+          </div>
+
+          <p class="annot" id="s-game-annot">Tippe einen Stein, der springen kann.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="s-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="s-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="s-end-bar">Ergebnis</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="s-end-glyph"></div>
+            <div class="end-title" id="s-end-title"></div>
+            <div class="end-sub" id="s-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="solo-board final-board" id="s-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="s-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="s-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="s-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Das Brett ist voll mit Steinen — nur die Mitte ist frei. Ein Stein springt waagerecht oder senkrecht über einen Nachbarstein auf das freie Feld dahinter; der übersprungene Stein wird entfernt.</p>
+              <div class="legend">
+                <div class="li"><span class="solo-peg s"></span><span>Ein Stein — tippe ihn an, um ihn springen zu lassen.</span></div>
+                <div class="li"><span class="solo-peg s hole"></span><span>Ein freies Feld — hier kann ein Sprung landen.</span></div>
+              </div>
+              <p class="note">Ziel: so lange springen, bis nur noch <b>ein einziger Stein</b> übrig ist — am schönsten genau in der Mitte. Bleibt kein Sprung mehr und mehr als ein Stein liegt, ist die Partie festgefahren.</p>
+              <button class="command primary" id="s-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>
           </section>
