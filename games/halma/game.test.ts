@@ -165,6 +165,26 @@ describe("getAiTurn", () => {
     expect(evaluate(after.board, "red")).toBeGreaterThan(before);
   });
 
+  it("finishes filling the camp instead of shuffling near the corner", () => {
+    // Nine of red's ten target cells filled; the inner tip (6,9) is empty and
+    // the last red piece sits just outside. The old distance-to-corner eval let
+    // the AI shuffle here forever; it must now march the piece into the tip.
+    const board = emptyBoard();
+    for (const [row, col] of [[9, 9], [9, 8], [9, 7], [9, 6], [8, 9], [8, 8], [8, 7], [7, 9], [7, 8]]) {
+      board[row][col] = "red";
+    }
+    board[4][9] = "red"; // 10th piece, outside the camp
+    let state = stateFrom(board, "red", { mode: "ai", difficulty: "medium", humanPlayer: "blue" });
+    let turns = 0;
+    while (!hasWon(state.board, "red") && turns < 20) {
+      state = applyTurn(state, getAiTurn(state, seededRandom(turns + 1)));
+      // Ignore the (absent) opponent — keep giving red the move.
+      state = { ...state, currentPlayer: "red", jumpingFrom: null, jumpChain: [] };
+      turns += 1;
+    }
+    expect(hasWon(state.board, "red")).toBe(true);
+  });
+
   it("prefers a long jump chain over a single step when it gains ground", () => {
     // A ladder of blue stones red can chain-jump straight toward its goal.
     const board = emptyBoard();

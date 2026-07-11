@@ -74,11 +74,6 @@ export function targetCamp(player: Player): Set<string> {
   return player === "red" ? CAMPS.bottomRight : CAMPS.topLeft;
 }
 
-/** The deep corner of a player's target camp — used as the AI's distance goal. */
-function goalCorner(player: Player): Square {
-  return player === "red" ? { row: SIZE - 1, col: SIZE - 1 } : { row: 0, col: 0 };
-}
-
 const DIRECTIONS: ReadonlyArray<Square> = [
   { row: -1, col: -1 },
   { row: -1, col: 0 },
@@ -271,17 +266,42 @@ function chebyshev(square: Square, goal: Square): number {
   return Math.max(Math.abs(square.row - goal.row), Math.abs(square.col - goal.col));
 }
 
+// Filling a target-camp cell is worth far more than any single step of distance,
+// so the AI always prefers to complete the camp over shuffling toward the corner.
+const CAMP_FILL_BONUS = 40;
+
+/**
+ * How close `player` is to winning. Each of its pieces already sitting on a
+ * target-camp cell is worth a big flat bonus; every other piece contributes the
+ * negative distance to the NEAREST still-unfilled camp cell. Measuring against
+ * the unfilled cells (not the single deep corner) is what makes the AI march
+ * pieces into the camp's far tips and actually complete it — the old
+ * distance-to-corner heuristic rated a tip piece worse than a corner one, so the
+ * AI crowded the corner and shuffled forever.
+ */
 function progress(board: Board, player: Player): number {
-  const goal = goalCorner(player);
-  let total = 0;
-  let worst = 0;
-  for (const square of ownSquares(board, player)) {
-    const distance = chebyshev(square, goal);
-    total += SIZE - 1 - distance; // closer ⇒ higher
-    if (distance > worst) worst = distance;
+  const camp = targetCamp(player);
+  const unfilled: Square[] = [];
+  for (const cell of camp) {
+    const [row, col] = cell.split(",").map(Number);
+    if (board[row][col] !== player) unfilled.push({ row, col });
   }
-  // Subtract the straggler's distance so the search prefers pulling it along.
-  return total - worst;
+
+  let filled = 0;
+  let distance = 0;
+  for (const square of ownSquares(board, player)) {
+    if (camp.has(`${square.row},${square.col}`)) {
+      filled += 1;
+      continue;
+    }
+    let nearest = SIZE * 2;
+    for (const target of unfilled) {
+      const step = chebyshev(square, target);
+      if (step < nearest) nearest = step;
+    }
+    distance += nearest;
+  }
+  return filled * CAMP_FILL_BONUS - distance;
 }
 
 export function evaluate(board: Board, player: Player): number {
