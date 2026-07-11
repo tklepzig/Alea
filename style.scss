@@ -525,12 +525,15 @@ button.peg {
 // HUB — startpage
 // ===========================================================================
 .view-hub {
-  // Cap the startpage to the viewport so the footer (offline badge) is always
+  // Pin the startpage to the viewport so the footer (offline badge) is always
   // visible: the game list scrolls INSIDE the panel, not the whole page. Only
   // the hub does this — game screens keep their own layout. The hub has no text
   // inputs, so a fixed height here can't trap one under a mobile keyboard.
+  // A DEFINITE height (not max-height) is required: with an auto height the
+  // minmax(0,1fr) panel row sizes to its content and the overflow spills to the
+  // page — which showed up as the footer scrolling off on first paint.
   grid-template-rows: auto minmax(0, 1fr);
-  max-height: calc(100dvh - 2 * var(--padding));
+  height: calc(100dvh - 2 * var(--padding));
   min-height: 0;
 
   // Ada's panel is already grid(auto 1fr auto) + article overflow:auto, but its
