@@ -78,6 +78,16 @@
               </span>
               <span class="card-chip" id="chip-muehle" hidden>Spiel läuft</span>
             </button>
+            <button class="game-card" id="card-halma" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok ha-red"></i><i class="tok ha-blue"></i><i class="tok ha-blue"></i><i class="tok ha-red"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Halma</span>
+                <span class="card-desc">Bring deine Steine ins gegnerische Lager — springe weit.</span>
+              </span>
+              <span class="card-chip" id="chip-halma" hidden>Spiel läuft</span>
+            </button>
           </article>
           <footer>
             <span class="offline-status" id="offline-status" hidden></span>
@@ -669,6 +679,146 @@
               </div>
               <p class="note">Wer nur noch drei Steine hat, darf auf jedes freie Feld <b>springen</b>. Wer auf zwei Steine sinkt oder nicht mehr ziehen kann, verliert.</p>
               <button class="command primary" id="m-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- HALMA — race to the far camp (ids prefixed h-)                  -->
+      <!-- ############################################################### -->
+      <section class="view view-halma" id="view-halma" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="h-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="h-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="ha red"></i><i class="ha blue"></i><i class="ha blue"></i><i class="ha red"></i>
+              </span>
+              <span class="name">HALMA</span>
+            </div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-discs">
+                <span class="halma-stone l red"></span><span class="halma-stone l blue"></span><span class="halma-stone l red"></span>
+              </div>
+              <p class="tagline">Bring alle deine Steine ins gegnerische Lager — mit weiten Sprüngen zuerst.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="h-btn-ai" type="button">Gegen KI</button>
+            <button class="command cta" id="h-btn-local" type="button">Lokal (2 Spieler)</button>
+            <button class="command cta outline" id="h-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="h-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- =========================== SETUP ============================ -->
+        <section class="screen" id="h-screen-setup" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="h-setup-back" type="button" aria-label="Zurück">←</button>
+            <div class="title">Gegen KI</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header>Schwierigkeit</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
+                <div class="segmented quad" id="h-seg-difficulty" role="group" aria-label="Schwierigkeit">
+                  <button class="seg" type="button" data-value="easy">Leicht</button>
+                  <button class="seg" type="button" data-value="medium">Mittel</button>
+                  <button class="seg" type="button" data-value="hard">Schwer</button>
+                  <button class="seg" type="button" data-value="expert">Experte</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel">
+            <header>Erster Zug</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
+                <div class="segmented" id="h-seg-first" role="group" aria-label="Wer beginnt">
+                  <button class="seg" type="button" data-value="human">Du</button>
+                  <button class="seg" type="button" data-value="ai">KI</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="h-btn-start-ai" type="button">Spiel starten</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="h-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="h-game-back" type="button" aria-label="Startseite">←</button>
+            <div class="title turn" id="h-game-title">Rot ist dran</div>
+            <button class="iconbtn" id="h-game-restart" type="button" aria-label="Neu starten">↻</button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="halma-board" id="h-board"></div>
+          </div>
+
+          <p class="annot" id="h-game-annot">Wähle einen Stein: ein Schritt oder ein Sprung ins Ziel.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="h-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="h-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="h-end-bar">Ergebnis</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="h-end-glyph"></div>
+            <div class="end-title" id="h-end-title"></div>
+            <div class="end-sub" id="h-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="halma-board final-board" id="h-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="h-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="h-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="h-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Jeder hat zehn Steine in einer Ecke. Ziel: alle Steine ins gegenüberliegende Lager bringen. Wer zuerst drüben ist, gewinnt.</p>
+              <div class="legend">
+                <div class="li"><span class="halma-stone s red"></span><span>Ein Zug ist <b>ein Schritt</b> auf ein freies Nachbarfeld (auch diagonal).</span></div>
+                <div class="li"><span class="halma-stone s blue"></span><span>Oder ein <b>Sprung</b> über einen beliebigen Stein auf das freie Feld dahinter — Sprünge lassen sich aneinanderreihen.</span></div>
+              </div>
+              <p class="note">Nach einem Sprung darfst du weiterspringen oder stoppen. Sprünge schlagen keine Steine — sie bringen dich nur schneller ans Ziel.</p>
+              <button class="command primary" id="h-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>
           </section>

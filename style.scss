@@ -34,6 +34,15 @@ body.theme-muehle {
   --c-base-light: 0.11;
 }
 
+body.theme-halma {
+  @extend %colourShades;
+  --hue: 350;
+  --l-base: 0.37;
+  --c-base: 0.11;
+  --l-base-light: 0.47;
+  --c-base-light: 0.14;
+}
+
 // Self-hosted Open Sans (Ada's default family) so the PWA renders identically
 // offline. Refresh with scripts/update-fonts.sh.
 @font-face {
@@ -394,6 +403,30 @@ body.theme-muehle {
   height: 44px;
 }
 
+// Halma: round stones in red / blue. On the board the stone fills its cell
+// (see .view-halma).
+.halma-stone {
+  display: inline-block;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+}
+.halma-stone.red {
+  background: var(--disc-red);
+}
+.halma-stone.blue {
+  background: #2f80ed;
+}
+.halma-stone.s {
+  width: 22px;
+  height: 22px;
+}
+.halma-stone.l {
+  width: 44px;
+  height: 44px;
+}
+
 .peg {
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.45);
@@ -526,6 +559,8 @@ button.peg {
 .card-tokens .tok.dame-black { background: #2c2c36; }
 .card-tokens .tok.mu-red { background: var(--disc-red); }
 .card-tokens .tok.mu-blue { background: #2f80ed; }
+.card-tokens .tok.ha-red { background: var(--disc-red); }
+.card-tokens .tok.ha-blue { background: #2f80ed; }
 .card-body {
   display: grid;
   gap: 2px;
@@ -1279,6 +1314,146 @@ button.peg {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.2),
       0 0 0 3px #fff;
+  }
+
+  .end-glyph.red {
+    color: var(--disc-red);
+  }
+  .end-glyph.blue {
+    color: #6aa8f5;
+  }
+  .final-board {
+    margin-inline: auto;
+    max-width: 20rem;
+  }
+}
+
+// ===========================================================================
+// HALMA — race to the far camp. 10×10 grid; the two corner camps are tinted so
+// each side sees its goal. Rose theme (body.theme-halma).
+// ===========================================================================
+.view-halma {
+  .title.turn.red {
+    color: var(--disc-red);
+  }
+  .title.turn.blue {
+    color: #6aa8f5;
+  }
+
+  .wordmark .logo {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+  .wordmark .logo .ha {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .ha.red {
+    background: var(--disc-red);
+  }
+  .ha.blue {
+    background: #2f80ed;
+  }
+
+  .hero-discs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  #h-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  .halma-board {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    width: 100%;
+    max-width: 28rem;
+    aspect-ratio: 1;
+    padding: clamp(4px, 1.4%, 10px);
+    gap: clamp(1px, 0.4%, 3px);
+    background: oklch(var(--950));
+    border: 2px solid oklch(var(--700));
+    border-radius: clamp(8px, 2.4%, 16px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.05),
+      var(--box-shadow);
+  }
+  .hc {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    padding: 0;
+    border: none;
+    border-radius: 22%;
+    background: oklch(var(--800) / 0.35);
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid #fff;
+      outline-offset: -2px;
+    }
+  }
+  // Camp tints — a faint colour wash so each side sees start and goal.
+  .hc.camp-red {
+    background: color-mix(in oklab, var(--disc-red) 22%, oklch(var(--950)));
+  }
+  .hc.camp-blue {
+    background: color-mix(in oklab, #2f80ed 22%, oklch(var(--950)));
+  }
+
+  .hc .halma-stone {
+    width: 84%;
+    height: 84%;
+  }
+
+  // Move hints: movable pieces glow; the picked-up piece is ringed; a step lands
+  // on a soft dot, a jump on a brighter ring so chains read at a glance.
+  .halma-board:not(.locked) .hc.movable .halma-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 -3px 7px rgba(0, 0, 0, 0.4),
+      0 0 0 2px oklch(var(--500));
+  }
+  .hc.selected .halma-stone,
+  .hc.chain .halma-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 0 0 3px oklch(var(--500));
+  }
+  .hc.chain .halma-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 0 0 3px #fff;
+  }
+  .hc.target::after {
+    content: "";
+    width: 40%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: oklch(var(--500) / 0.55);
+  }
+  .hc.jump-target::after {
+    content: "";
+    width: 46%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: oklch(var(--500));
+    box-shadow: 0 0 0 3px oklch(var(--500) / 0.3);
   }
 
   .end-glyph.red {

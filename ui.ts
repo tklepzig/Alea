@@ -15,8 +15,9 @@ import { initQuadra } from "./games/quadra/ui.js";
 import { initCiphra } from "./games/ciphra/ui.js";
 import { initDame } from "./games/dame/ui.js";
 import { initMuehle } from "./games/muehle/ui.js";
+import { initHalma } from "./games/halma/ui.js";
 
-type GameId = "quadra" | "ciphra" | "dame" | "muehle";
+type GameId = "quadra" | "ciphra" | "dame" | "muehle" | "halma";
 type ViewId = "hub" | GameId;
 
 interface GameEntry {
@@ -67,6 +68,13 @@ const games: GameEntry[] = [
     themeClass: "theme-muehle",
     themeColor: "#0e2a2c",
     controller: initMuehle({ onExit: goHub }),
+  },
+  {
+    id: "halma",
+    name: "Halma",
+    themeClass: "theme-halma",
+    themeColor: "#2e1622",
+    controller: initHalma({ onExit: goHub }),
   },
 ];
 

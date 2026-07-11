@@ -1,0 +1,458 @@
+// Halma's DOM wiring and screen flow. The rules live in game.ts (pure, tested);
+// this file renders the 10×10 board, handles select→step/jump input (including
+// human jump-chains that the player ends by tapping the moving piece), and
+// replays the AI's whole turn hop by hop. Element ids are prefixed `h-`.
+
+import { APP_ID } from "../../shell/app.js";
+import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
+import type { GameController, GameHost } from "../../shell/game-controller.js";
+import {
+  SIZE,
+  createGame,
+  applyMove,
+  getAiTurn,
+  legalMoves,
+  targetCamp,
+  otherPlayer,
+  type GameState,
+  type Mode,
+  type Move,
+  type Player,
+  type Square,
+} from "./game.js";
+import {
+  DEFAULT_SETTINGS,
+  serializeGame,
+  deserializeGame,
+  serializeSettings,
+  deserializeSettings,
+  type Settings,
+} from "./storage.js";
+
+const GAME_KEY = `${APP_ID}.halma.game`;
+const SETTINGS_KEY = `${APP_ID}.halma.settings`;
+
+// The AI "thinks" briefly, then plays its move; a multi-hop jump animates one
+// hop at a time.
+const AI_DELAY_MS = 550;
+const AI_HOP_MS = 300;
+const END_DELAY_MS = 1150;
+
+function loadSettings(): Settings {
+  return deserializeSettings(safeGet(SETTINGS_KEY)) ?? { ...DEFAULT_SETTINGS };
+}
+function saveSettings(next: Settings): void {
+  safeSet(SETTINGS_KEY, serializeSettings(next));
+}
+function loadGame(): GameState | null {
+  return deserializeGame(safeGet(GAME_KEY));
+}
+function saveGame(state: GameState): void {
+  safeSet(GAME_KEY, serializeGame(state));
+}
+function clearGame(): void {
+  safeRemove(GAME_KEY);
+}
+
+const RED_CAMP = targetCamp("blue"); // top-left (blue's target, red's home)
+const BLUE_CAMP = targetCamp("red"); // bottom-right
+
+// ---------------------------------------------------------------------------
+// App state
+// ---------------------------------------------------------------------------
+let settings: Settings = loadSettings();
+let game: GameState | null = loadGame();
+// The piece the human has picked up (moving), or the piece mid jump-chain.
+let selected: Square | null = null;
+let aiThinking = false;
+let aiTimer: ReturnType<typeof setTimeout> | undefined;
+let endTimer: ReturnType<typeof setTimeout> | undefined;
+
+const byId = <T extends HTMLElement>(id: string): T =>
+  document.getElementById(`h-${id}`) as T;
+
+const cellKey = (square: Square): string => `${square.row},${square.col}`;
+
+function aiPlayer(state: GameState): Player {
+  return otherPlayer(state.humanPlayer);
+}
+function isAiTurn(state: GameState): boolean {
+  return state.mode === "ai" && state.currentPlayer === aiPlayer(state);
+}
+
+function clearTimers(): void {
+  clearTimeout(aiTimer);
+  clearTimeout(endTimer);
+  aiTimer = undefined;
+  endTimer = undefined;
+  aiThinking = false;
+}
+
+// ---------------------------------------------------------------------------
+// Screens
+// ---------------------------------------------------------------------------
+type ScreenName = "home" | "setup" | "game" | "end";
+
+function showScreen(name: ScreenName): void {
+  for (const screen of ["home", "setup", "game", "end"] as const) {
+    byId(`screen-${screen}`).hidden = screen !== name;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Board rendering
+// ---------------------------------------------------------------------------
+function renderBoard(container: HTMLElement, state: GameState, interactive: boolean): void {
+  const locked = !interactive || aiThinking || state.status !== "playing" || isAiTurn(state);
+  container.classList.toggle("locked", locked);
+  container.replaceChildren();
+
+  const moves = interactive && !locked ? legalMoves(state) : [];
+  const fromSel = (move: Move): boolean =>
+    (move.kind === "step" || move.kind === "jump") &&
+    selected !== null &&
+    move.from.row === selected.row &&
+    move.from.col === selected.col;
+
+  const stepTargets = new Set(
+    selected ? moves.filter((move) => move.kind === "step" && fromSel(move)).map((move) => (move.kind === "step" ? cellKey(move.to) : "")) : [],
+  );
+  const jumpTargets = new Set(
+    moves.filter((move) => move.kind === "jump" && (state.jumpingFrom ? true : fromSel(move))).map((move) => (move.kind === "jump" ? cellKey(move.to) : "")),
+  );
+  const hasFrom = (move: Move): move is Extract<Move, { from: Square }> => move.kind !== "end";
+  const movable = new Set(
+    !state.jumpingFrom && selected === null
+      ? moves.filter(hasFrom).map((move) => cellKey(move.from))
+      : [],
+  );
+
+  for (let row = 0; row < SIZE; row++) {
+    for (let col = 0; col < SIZE; col++) {
+      const square: Square = { row, col };
+      const cell = document.createElement(interactive ? "button" : "div");
+      cell.className = "hc";
+      if (RED_CAMP.has(cellKey(square))) cell.classList.add("camp-red");
+      if (BLUE_CAMP.has(cellKey(square))) cell.classList.add("camp-blue");
+
+      if (interactive) {
+        const button = cell as HTMLButtonElement;
+        button.type = "button";
+        button.disabled = locked;
+        button.setAttribute("aria-label", `Feld ${col + 1}/${row + 1}`);
+        button.addEventListener("click", () => onCellClick(square));
+      }
+
+      if (selected && selected.row === row && selected.col === col) {
+        cell.classList.add(state.jumpingFrom ? "chain" : "selected");
+      }
+      if (stepTargets.has(cellKey(square))) cell.classList.add("target");
+      if (jumpTargets.has(cellKey(square))) cell.classList.add("jump-target");
+      if (movable.has(cellKey(square))) cell.classList.add("movable");
+
+      const owner = state.board[row][col];
+      if (owner) {
+        const stone = document.createElement("span");
+        stone.className = `halma-stone ${owner}`;
+        cell.append(stone);
+      }
+      container.append(cell);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Game screen text
+// ---------------------------------------------------------------------------
+function turnText(state: GameState): string {
+  if (state.mode === "ai") {
+    return state.currentPlayer === state.humanPlayer ? "Du bist dran" : "KI denkt …";
+  }
+  return state.currentPlayer === "red" ? "Rot ist dran" : "Blau ist dran";
+}
+
+function annotText(state: GameState): string {
+  if (aiThinking) return "";
+  if (state.jumpingFrom) return "Weiter springen — oder tippe deinen Stein, um den Zug zu beenden.";
+  return "Wähle einen Stein: ein Schritt oder ein Sprung ins Ziel.";
+}
+
+function renderGame(): void {
+  if (!game) return;
+  const title = byId("game-title");
+  title.textContent = turnText(game);
+  title.className = `title turn ${game.currentPlayer}`;
+  byId("game-annot").textContent = annotText(game);
+  renderBoard(byId("board"), game, true);
+}
+
+// ---------------------------------------------------------------------------
+// Turn loop — human
+// ---------------------------------------------------------------------------
+function goToEnd(): void {
+  clearGame();
+  selected = null;
+  renderGame();
+  endTimer = setTimeout(() => {
+    renderEnd();
+    showScreen("end");
+  }, END_DELAY_MS);
+}
+
+function humanMove(move: Move): void {
+  if (!game) return;
+  game = applyMove(game, move);
+
+  if (game.status !== "playing") {
+    goToEnd();
+    return;
+  }
+
+  if (game.jumpingFrom) {
+    // The chain continues. If no further jump is possible, end the turn for the
+    // player; otherwise keep the piece picked up and wait for their choice.
+    selected = game.jumpingFrom;
+    const canContinue = legalMoves(game).some((candidate) => candidate.kind === "jump");
+    if (!canContinue) {
+      humanMove({ kind: "end" });
+      return;
+    }
+    renderGame();
+    return;
+  }
+
+  selected = null;
+  saveGame(game);
+  renderGame();
+  maybeScheduleAi();
+}
+
+function onCellClick(square: Square): void {
+  if (!game || game.status !== "playing" || aiThinking || isAiTurn(game)) return;
+  const moves = legalMoves(game);
+
+  if (game.jumpingFrom) {
+    const jump = moves.find(
+      (move) => move.kind === "jump" && move.to.row === square.row && move.to.col === square.col,
+    );
+    if (jump) {
+      humanMove(jump);
+      return;
+    }
+    // Tapping the moving piece itself ends the turn.
+    if (game.jumpingFrom.row === square.row && game.jumpingFrom.col === square.col) {
+      humanMove({ kind: "end" });
+    }
+    return;
+  }
+
+  if (selected) {
+    const move = moves.find(
+      (candidate) =>
+        (candidate.kind === "step" || candidate.kind === "jump") &&
+        candidate.from.row === selected!.row &&
+        candidate.from.col === selected!.col &&
+        candidate.to.row === square.row &&
+        candidate.to.col === square.col,
+    );
+    if (move) {
+      humanMove(move);
+      return;
+    }
+  }
+  const ownMovable = moves.some(
+    (move) => (move.kind === "step" || move.kind === "jump") && move.from.row === square.row && move.from.col === square.col,
+  );
+  selected = ownMovable ? square : null;
+  renderGame();
+}
+
+// ---------------------------------------------------------------------------
+// Turn loop — AI (replays a full turn, one hop at a time)
+// ---------------------------------------------------------------------------
+function maybeScheduleAi(): void {
+  if (!game || game.status !== "playing" || !isAiTurn(game)) return;
+  aiThinking = true;
+  selected = null;
+  renderGame(); // lock, show "KI denkt …"
+  aiTimer = setTimeout(() => {
+    if (!game || game.status !== "playing" || !isAiTurn(game)) {
+      aiThinking = false;
+      return;
+    }
+    playPath(getAiTurn(game), 0);
+  }, AI_DELAY_MS);
+}
+
+function playPath(path: Move[], index: number): void {
+  if (!game || index >= path.length) return;
+  game = applyMove(game, path[index]);
+
+  const last = index + 1 >= path.length;
+  if (game.status !== "playing") {
+    aiThinking = false;
+    goToEnd();
+    return;
+  }
+  if (last) {
+    aiThinking = false;
+    selected = null;
+    saveGame(game);
+    renderGame();
+    maybeScheduleAi(); // no-op unless both sides are AI
+    return;
+  }
+  renderGame(); // show the intermediate hop; board stays locked
+  aiTimer = setTimeout(() => playPath(path, index + 1), AI_HOP_MS);
+}
+
+// ---------------------------------------------------------------------------
+// End screen
+// ---------------------------------------------------------------------------
+function playerLabel(player: Player): string {
+  return player === "red" ? "Rot" : "Blau";
+}
+
+function renderEnd(): void {
+  if (!game || game.winner === null) return;
+  const humanWon = game.mode === "ai" && game.winner === game.humanPlayer;
+
+  byId("end-bar").textContent = game.mode === "ai" ? (humanWon ? "Gewonnen" : "Verloren") : "Ergebnis";
+
+  const glyph = byId("end-glyph");
+  glyph.textContent = "★";
+  glyph.className = `end-glyph ${game.winner}`;
+
+  const title = byId("end-title");
+  if (game.mode === "ai") {
+    title.textContent = humanWon ? "DU GEWINNST" : "KI GEWINNT";
+    title.className = `end-title ${humanWon ? "win" : "lose"}`;
+  } else {
+    title.textContent = `${playerLabel(game.winner).toUpperCase()} GEWINNT`;
+    title.className = `end-title ${game.winner}`;
+  }
+
+  byId("end-sub").textContent =
+    game.mode === "ai"
+      ? humanWon
+        ? "Alle deine Steine stehen im Ziel — stark!"
+        : "Die KI war zuerst drüben. Revanche?"
+      : `${playerLabel(game.winner)} hat alle Steine ins gegnerische Lager gebracht.`;
+
+  renderBoard(byId("end-board"), game, false);
+}
+
+// ---------------------------------------------------------------------------
+// Setup screen (AI mode only)
+// ---------------------------------------------------------------------------
+function markSegment(groupId: string, value: string): void {
+  for (const button of byId(groupId).querySelectorAll<HTMLButtonElement>(".seg")) {
+    button.classList.toggle("active", button.dataset.value === value);
+    button.setAttribute("aria-pressed", String(button.dataset.value === value));
+  }
+}
+
+function renderSetup(): void {
+  markSegment("seg-difficulty", settings.difficulty);
+  markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+}
+
+// ---------------------------------------------------------------------------
+// Home screen
+// ---------------------------------------------------------------------------
+function renderHome(): void {
+  (byId("btn-continue") as HTMLButtonElement).hidden = game === null || game.status !== "playing";
+}
+
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = true): void {
+  clearTimers();
+  game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
+  selected = null;
+  saveGame(game);
+  showScreen("game");
+  renderGame();
+  maybeScheduleAi();
+}
+
+function resumeGame(): void {
+  if (!game) return;
+  clearTimers();
+  selected = null;
+  showScreen("game");
+  renderGame();
+  maybeScheduleAi();
+}
+
+function goHome(): void {
+  clearTimers();
+  selected = null;
+  renderHome();
+  showScreen("home");
+}
+
+function openSetup(): void {
+  renderSetup();
+  showScreen("setup");
+}
+
+// ---------------------------------------------------------------------------
+// Wiring + hub contract — called once at boot by the hub.
+// ---------------------------------------------------------------------------
+export function initHalma(host: GameHost): GameController {
+  const howto = byId<HTMLDialogElement>("howto");
+
+  byId("home-hub").addEventListener("click", host.onExit);
+  byId("btn-ai").addEventListener("click", openSetup);
+  byId("btn-local").addEventListener("click", () => startGame("local"));
+  byId("btn-continue").addEventListener("click", resumeGame);
+  byId("btn-howto").addEventListener("click", () => howto.showModal());
+
+  byId("setup-back").addEventListener("click", goHome);
+  byId("btn-start-ai").addEventListener("click", () =>
+    startGame("ai", settings.difficulty, settings.humanFirst),
+  );
+
+  byId("seg-difficulty").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    const difficulties = ["easy", "medium", "hard", "expert"] as const;
+    if (!difficulties.includes(value as (typeof difficulties)[number])) return;
+    settings = { ...settings, difficulty: value as Settings["difficulty"] };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-first").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "human" && value !== "ai") return;
+    settings = { ...settings, humanFirst: value === "human" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("game-back").addEventListener("click", goHome);
+  byId("game-restart").addEventListener("click", () => {
+    if (!game) return;
+    startGame(game.mode, game.difficulty, game.humanPlayer === "red");
+  });
+
+  byId("end-back").addEventListener("click", goHome);
+  byId("btn-home").addEventListener("click", goHome);
+  byId("btn-again").addEventListener("click", () => {
+    if (!game) return;
+    startGame(game.mode, game.difficulty, game.humanPlayer === "red");
+  });
+
+  byId("howto-close").addEventListener("click", () => howto.close());
+  howto.addEventListener("click", (event) => {
+    if (event.target === howto) howto.close();
+  });
+
+  return {
+    activate: goHome,
+    deactivate: clearTimers,
+    hasRunningGame: () => game !== null && game.status === "playing",
+  };
+}

@@ -20,7 +20,11 @@
     "games/muehle/game.ts",
     "games/muehle/game.test.ts",
     "games/muehle/storage.ts",
-    "games/muehle/storage.test.ts"
+    "games/muehle/storage.test.ts",
+    "games/halma/game.ts",
+    "games/halma/game.test.ts",
+    "games/halma/storage.ts",
+    "games/halma/storage.test.ts"
   ],
   "exclude": []
 }
