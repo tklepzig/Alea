@@ -1,11 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <!-- Maskable variant: full-bleed background (the platform applies its own mask
-       shape); the die stays inside the maskable safe zone (central 80%). -->
+       shape); the die fills most of the maskable safe zone (central ~80% circle,
+       radius ~205 from centre) so it reads clearly once cropped. Die corners sit
+       ~198px from centre — inside the safe circle. -->
   <rect x="0" y="0" width="512" height="512" fill="#0d1424" />
-  <rect x="166" y="166" width="180" height="180" rx="34" fill="#ece7de" />
-  <circle cx="210" cy="210" r="20" fill="#e23c43" />
-  <circle cx="302" cy="210" r="20" fill="#f4c542" />
-  <circle cx="256" cy="256" r="20" fill="#1a7abf" />
-  <circle cx="210" cy="302" r="20" fill="#009e73" />
-  <circle cx="302" cy="302" r="20" fill="#e69f00" />
+  <rect x="116" y="116" width="280" height="280" rx="52" fill="#ece7de" />
+  <circle cx="178" cy="178" r="31" fill="#e23c43" />
+  <circle cx="334" cy="178" r="31" fill="#f4c542" />
+  <circle cx="256" cy="256" r="31" fill="#1a7abf" />
+  <circle cx="178" cy="334" r="31" fill="#009e73" />
+  <circle cx="334" cy="334" r="31" fill="#e69f00" />
 </svg>
