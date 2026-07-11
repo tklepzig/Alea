@@ -25,6 +25,15 @@ body.theme-dame {
   --c-base-light: 0.14;
 }
 
+body.theme-muehle {
+  @extend %colourShades;
+  --hue: 190;
+  --l-base: 0.34;
+  --c-base: 0.08;
+  --l-base-light: 0.44;
+  --c-base-light: 0.11;
+}
+
 // Self-hosted Open Sans (Ada's default family) so the PWA renders identically
 // offline. Refresh with scripts/update-fonts.sh.
 @font-face {
@@ -361,6 +370,30 @@ body.theme-dame {
   height: 44px;
 }
 
+// Mühle: round stones in red / blue. Sizes l/s mirror the other games' pieces;
+// on the board the stone fills its point (see .view-muehle).
+.muehle-stone {
+  display: inline-block;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+}
+.muehle-stone.red {
+  background: var(--disc-red);
+}
+.muehle-stone.blue {
+  background: #2f80ed;
+}
+.muehle-stone.s {
+  width: 22px;
+  height: 22px;
+}
+.muehle-stone.l {
+  width: 44px;
+  height: 44px;
+}
+
 .peg {
   border-radius: 50%;
   border: 1px solid rgba(0, 0, 0, 0.45);
@@ -491,6 +524,8 @@ button.peg {
 .card-tokens .tok.yellow { background: var(--disc-yellow); }
 .card-tokens .tok.dame-red { background: var(--disc-red); }
 .card-tokens .tok.dame-black { background: #2c2c36; }
+.card-tokens .tok.mu-red { background: var(--disc-red); }
+.card-tokens .tok.mu-blue { background: #2f80ed; }
 .card-body {
   display: grid;
   gap: 2px;
@@ -1102,5 +1137,158 @@ button.peg {
   .final-board {
     margin-inline: auto;
     max-width: 22rem;
+  }
+}
+
+// ===========================================================================
+// MÜHLE — Nine Men's Morris. A square board of three rings drawn as an SVG line
+// layer, with 24 point-buttons positioned on top. Teal theme (body.theme-muehle).
+// ===========================================================================
+.view-muehle {
+  .title.turn.red {
+    color: var(--disc-red);
+  }
+  .title.turn.blue {
+    color: #6aa8f5;
+  }
+
+  .wordmark .logo {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+  .wordmark .logo .mu {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .mu.red {
+    background: var(--disc-red);
+  }
+  .mu.blue {
+    background: #2f80ed;
+  }
+
+  .hero-discs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  #m-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  .muehle-board {
+    position: relative;
+    width: 100%;
+    max-width: 26rem;
+    aspect-ratio: 1;
+    padding: 0;
+    background: oklch(var(--950));
+    border: 2px solid oklch(var(--700));
+    border-radius: clamp(10px, 3%, 18px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.05),
+      var(--box-shadow);
+  }
+  // The line layer fills the board; the SVG stretches to it (points use the same
+  // percentage coordinate space).
+  .muehle-lines-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .muehle-lines {
+    width: 100%;
+    height: 100%;
+  }
+  .muehle-lines rect,
+  .muehle-lines line {
+    fill: none;
+    stroke: oklch(var(--500) / 0.7);
+    stroke-width: 0.7;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+  }
+
+  // 24 point buttons, absolutely positioned by percentage (translate centres the
+  // hit area on the coordinate). Each shows a small node dot; an occupied point
+  // covers it with a stone.
+  .mp {
+    position: absolute;
+    width: 12%;
+    height: 12%;
+    transform: translate(-50%, -50%);
+    display: grid;
+    place-items: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
+    &::before {
+      content: "";
+      width: 26%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: oklch(var(--500) / 0.55);
+    }
+    &:focus-visible {
+      outline: var(--border-width) solid #fff;
+      outline-offset: -2px;
+      border-radius: 50%;
+    }
+  }
+  .mp .muehle-stone {
+    position: absolute;
+    width: 82%;
+    height: 82%;
+  }
+
+  // Empty destinations (placement or slide) light their node; playable and
+  // picked-up stones glow; a takeable enemy stone gets a bright ring.
+  .muehle-board:not(.locked) .mp.placeable::before,
+  .muehle-board:not(.locked) .mp.target::before {
+    background: oklch(var(--500));
+    box-shadow: 0 0 0 3px oklch(var(--500) / 0.3);
+  }
+  .muehle-board:not(.locked) .mp.movable .muehle-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      inset 0 -3px 7px rgba(0, 0, 0, 0.4),
+      0 0 0 2px oklch(var(--500));
+  }
+  .mp.selected .muehle-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 0 0 3px oklch(var(--500));
+  }
+  .muehle-board:not(.locked) .mp.removable .muehle-stone {
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+      0 0 0 3px #fff;
+  }
+
+  .end-glyph.red {
+    color: var(--disc-red);
+  }
+  .end-glyph.blue {
+    color: #6aa8f5;
+  }
+  .final-board {
+    margin-inline: auto;
+    max-width: 20rem;
   }
 }

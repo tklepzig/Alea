@@ -16,7 +16,11 @@
     "games/dame/game.ts",
     "games/dame/game.test.ts",
     "games/dame/storage.ts",
-    "games/dame/storage.test.ts"
+    "games/dame/storage.test.ts",
+    "games/muehle/game.ts",
+    "games/muehle/game.test.ts",
+    "games/muehle/storage.ts",
+    "games/muehle/storage.test.ts"
   ],
   "exclude": []
 }

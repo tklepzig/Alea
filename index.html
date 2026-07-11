@@ -68,6 +68,16 @@
               </span>
               <span class="card-chip" id="chip-dame" hidden>Spiel läuft</span>
             </button>
+            <button class="game-card" id="card-muehle" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok mu-red"></i><i class="tok mu-blue"></i><i class="tok mu-blue"></i><i class="tok mu-red"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Mühle</span>
+                <span class="card-desc">Schließe Mühlen, nimm Steine — gegen die KI oder zu zweit.</span>
+              </span>
+              <span class="card-chip" id="chip-muehle" hidden>Spiel läuft</span>
+            </button>
           </article>
           <footer>
             <span class="offline-status" id="offline-status" hidden></span>
@@ -519,6 +529,146 @@
               </div>
               <p class="note">Ein Stein schlägt, indem er diagonal über einen gegnerischen Stein auf das freie Feld dahinter springt. Mehrfachsprünge zählen als ein Zug. Wer keinen Zug mehr hat, verliert.</p>
               <button class="command primary" id="d-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- MÜHLE — Nine Men's Morris (ids prefixed m-)                     -->
+      <!-- ############################################################### -->
+      <section class="view view-muehle" id="view-muehle" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="m-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="m-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="mu red"></i><i class="mu blue"></i><i class="mu blue"></i><i class="mu red"></i>
+              </span>
+              <span class="name">MÜHLE</span>
+            </div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-discs">
+                <span class="muehle-stone l red"></span><span class="muehle-stone l blue"></span><span class="muehle-stone l red"></span>
+              </div>
+              <p class="tagline">Setze, ziehe, schließe Mühlen — und nimm deinem Gegner die Steine.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="m-btn-ai" type="button">Gegen KI</button>
+            <button class="command cta" id="m-btn-local" type="button">Lokal (2 Spieler)</button>
+            <button class="command cta outline" id="m-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="m-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- =========================== SETUP ============================ -->
+        <section class="screen" id="m-screen-setup" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="m-setup-back" type="button" aria-label="Zurück">←</button>
+            <div class="title">Gegen KI</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header>Schwierigkeit</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
+                <div class="segmented quad" id="m-seg-difficulty" role="group" aria-label="Schwierigkeit">
+                  <button class="seg" type="button" data-value="easy">Leicht</button>
+                  <button class="seg" type="button" data-value="medium">Mittel</button>
+                  <button class="seg" type="button" data-value="hard">Schwer</button>
+                  <button class="seg" type="button" data-value="expert">Experte</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel">
+            <header>Erster Zug</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
+                <div class="segmented" id="m-seg-first" role="group" aria-label="Wer beginnt">
+                  <button class="seg" type="button" data-value="human">Du</button>
+                  <button class="seg" type="button" data-value="ai">KI</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="m-btn-start-ai" type="button">Spiel starten</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="m-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="m-game-back" type="button" aria-label="Startseite">←</button>
+            <div class="title turn" id="m-game-title">Rot setzt (noch 9)</div>
+            <button class="iconbtn" id="m-game-restart" type="button" aria-label="Neu starten">↻</button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="muehle-board" id="m-board"></div>
+          </div>
+
+          <p class="annot" id="m-game-annot">Tippe ein freies Feld, um einen Stein zu setzen.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="m-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="m-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="m-end-bar">Ergebnis</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="m-end-glyph"></div>
+            <div class="end-title" id="m-end-title"></div>
+            <div class="end-sub" id="m-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="muehle-board final-board" id="m-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="m-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="m-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="m-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Jeder hat neun Steine. Zuerst setzt ihr abwechselnd alle Steine auf die Schnittpunkte. Danach zieht ihr einen Stein pro Zug auf einen freien Nachbarpunkt.</p>
+              <div class="legend">
+                <div class="li"><span class="muehle-stone s red"></span><span>Drei Steine in einer Linie sind eine <b>Mühle</b> — dafür nimmst du einen gegnerischen Stein.</span></div>
+                <div class="li"><span class="muehle-stone s blue"></span><span>Steine in einer Mühle sind geschützt, solange andere frei stehen.</span></div>
+              </div>
+              <p class="note">Wer nur noch drei Steine hat, darf auf jedes freie Feld <b>springen</b>. Wer auf zwei Steine sinkt oder nicht mehr ziehen kann, verliert.</p>
+              <button class="command primary" id="m-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>
           </section>
