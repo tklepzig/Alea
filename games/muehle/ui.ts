@@ -112,8 +112,51 @@ let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
+// Move feedback so the AI's action is easy to follow: the last placement/slide
+// stays glowing until the next move, the affected stone pops in, and a captured
+// stone leaves a fading ghost so you see which one was taken.
+let lastMove: { from: number | null; to: number } | null = null;
+let arriveAt: number | null = null; // consumed after one render
+let capturedGhost: { at: number; player: Player } | null = null;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+const CAPTURE_FLASH_MS = 480;
+
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`m-${id}`) as T;
+
+function setCapturedGhost(ghost: { at: number; player: Player } | null): void {
+  clearTimeout(flashTimer);
+  capturedGhost = ghost;
+  if (ghost) {
+    flashTimer = setTimeout(() => {
+      capturedGhost = null;
+      renderGame();
+    }, CAPTURE_FLASH_MS);
+  }
+}
+
+function clearHighlights(): void {
+  lastMove = null;
+  arriveAt = null;
+  setCapturedGhost(null);
+}
+
+/** Record what the just-applied move should highlight. A placement/slide lights
+ *  its path and pops the stone; a removal ghosts the taken enemy stone while the
+ *  mill-forming move stays lit. */
+function noteMove(move: Move, mover: Player): void {
+  if (move.kind === "place") {
+    lastMove = { from: null, to: move.to };
+    arriveAt = move.to;
+    setCapturedGhost(null);
+  } else if (move.kind === "move") {
+    lastMove = { from: move.from, to: move.to };
+    arriveAt = move.to;
+    setCapturedGhost(null);
+  } else {
+    setCapturedGhost({ at: move.at, player: otherPlayer(mover) });
+  }
+}
 
 function aiPlayer(state: GameState): Player {
   return otherPlayer(state.humanPlayer);
@@ -125,8 +168,10 @@ function isAiTurn(state: GameState): boolean {
 function clearTimers(): void {
   clearTimeout(aiTimer);
   clearTimeout(endTimer);
+  clearTimeout(flashTimer);
   aiTimer = undefined;
   endTimer = undefined;
+  flashTimer = undefined;
   aiThinking = false;
 }
 
@@ -196,12 +241,23 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
     if (placeable.has(index)) point.classList.add("placeable");
     if (destinations.has(index)) point.classList.add("target");
     if (movable.has(index)) point.classList.add("movable");
+    if (interactive && lastMove) {
+      if (lastMove.from === index) point.classList.add("last-from");
+      if (lastMove.to === index) point.classList.add("last-to");
+    }
 
     const owner = state.board[index];
     if (owner) {
       const stone = document.createElement("span");
       stone.className = `muehle-stone ${owner}`;
+      if (interactive && arriveAt === index) stone.classList.add("arrive");
       point.append(stone);
+    } else if (interactive && capturedGhost && capturedGhost.at === index) {
+      // The captured stone is already gone from state — ghost it so the player
+      // sees exactly which one the mill took.
+      const ghost = document.createElement("span");
+      ghost.className = `muehle-stone ${capturedGhost.player} captured-ghost`;
+      point.append(ghost);
     }
     container.append(point);
   }
@@ -243,6 +299,7 @@ function renderGame(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   renderBoard(byId("board"), game, true);
+  arriveAt = null; // consume: the arrival plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -250,6 +307,7 @@ function renderGame(): void {
 // ---------------------------------------------------------------------------
 function onPointClick(index: number): void {
   if (!game || game.status !== "playing" || aiThinking || isAiTurn(game)) return;
+  setCapturedGhost(null); // a tap means the flash has served its purpose
   const moves = legalMoves(game);
 
   if (game.pendingCapture) {
@@ -279,7 +337,9 @@ function onPointClick(index: number): void {
 
 function step(move: Move): void {
   if (!game) return;
+  const mover = game.currentPlayer;
   game = applyMove(game, move);
+  noteMove(move, mover);
 
   if (game.status !== "playing") {
     clearGame();
@@ -377,6 +437,7 @@ function renderHome(): void {
 // ---------------------------------------------------------------------------
 function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = true): void {
   clearTimers();
+  clearHighlights();
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
   selected = null;
   saveGame(game);
@@ -388,6 +449,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
 function resumeGame(): void {
   if (!game) return;
   clearTimers();
+  clearHighlights();
   selected = null;
   showScreen("game");
   renderGame();
@@ -396,6 +458,7 @@ function resumeGame(): void {
 
 function goHome(): void {
   clearTimers();
+  clearHighlights();
   selected = null;
   renderHome();
   showScreen("home");

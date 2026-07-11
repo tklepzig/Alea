@@ -35,7 +35,8 @@ const SETTINGS_KEY = `${APP_ID}.halma.settings`;
 // The AI "thinks" briefly, then plays its move; a multi-hop jump animates one
 // hop at a time.
 const AI_DELAY_MS = 550;
-const AI_HOP_MS = 300;
+// Slow enough between jump hops to follow the path (each hop also pops in).
+const AI_HOP_MS = 460;
 const END_DELAY_MS = 1150;
 
 function loadSettings(): Settings {
@@ -68,10 +69,30 @@ let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
+// Move feedback: the last hop's origin and destination stay lit until the next
+// move, and the moved stone pops into place — so a multi-hop AI turn is easy to
+// follow. (Halma has no captures, so no capture ghost.)
+let lastMove: { from: Square; to: Square } | null = null;
+let arriveAt: Square | null = null; // consumed after one render
+
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`h-${id}`) as T;
 
 const cellKey = (square: Square): string => `${square.row},${square.col}`;
+const sameSquare = (first: Square | null, second: Square | null): boolean =>
+  first !== null && second !== null && first.row === second.row && first.col === second.col;
+
+function clearHighlights(): void {
+  lastMove = null;
+  arriveAt = null;
+}
+
+function noteMove(move: Move): void {
+  if (move.kind === "step" || move.kind === "jump") {
+    lastMove = { from: move.from, to: move.to };
+    arriveAt = move.to;
+  }
+}
 
 function aiPlayer(state: GameState): Player {
   return otherPlayer(state.humanPlayer);
@@ -149,11 +170,16 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
       if (stepTargets.has(cellKey(square))) cell.classList.add("target");
       if (jumpTargets.has(cellKey(square))) cell.classList.add("jump-target");
       if (movable.has(cellKey(square))) cell.classList.add("movable");
+      if (interactive && lastMove) {
+        if (sameSquare(lastMove.from, square)) cell.classList.add("last-from");
+        if (sameSquare(lastMove.to, square)) cell.classList.add("last-to");
+      }
 
       const owner = state.board[row][col];
       if (owner) {
         const stone = document.createElement("span");
         stone.className = `halma-stone ${owner}`;
+        if (interactive && sameSquare(arriveAt, square)) stone.classList.add("arrive");
         cell.append(stone);
       }
       container.append(cell);
@@ -184,6 +210,7 @@ function renderGame(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   renderBoard(byId("board"), game, true);
+  arriveAt = null; // consume: the arrival plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +229,7 @@ function goToEnd(): void {
 function humanMove(move: Move): void {
   if (!game) return;
   game = applyMove(game, move);
+  noteMove(move);
 
   if (game.status !== "playing") {
     goToEnd();
@@ -287,6 +315,7 @@ function maybeScheduleAi(): void {
 function playPath(path: Move[], index: number): void {
   if (!game || index >= path.length) return;
   game = applyMove(game, path[index]);
+  noteMove(path[index]);
 
   const last = index + 1 >= path.length;
   if (game.status !== "playing") {
@@ -369,6 +398,7 @@ function renderHome(): void {
 // ---------------------------------------------------------------------------
 function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = true): void {
   clearTimers();
+  clearHighlights();
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
   selected = null;
   saveGame(game);
@@ -380,6 +410,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
 function resumeGame(): void {
   if (!game) return;
   clearTimers();
+  clearHighlights();
   selected = null;
   showScreen("game");
   renderGame();
@@ -388,6 +419,7 @@ function resumeGame(): void {
 
 function goHome(): void {
   clearTimers();
+  clearHighlights();
   selected = null;
   renderHome();
   showScreen("home");

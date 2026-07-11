@@ -67,10 +67,39 @@ let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
+// Move feedback so the AI's action is easy to follow: the last move's origin and
+// destination stay glowing until the next move, the moved piece plays a one-shot
+// arrival, and a captured piece leaves a fading ghost so you see what was taken.
+let lastMove: { from: Square | null; to: Square } | null = null;
+let arriveAt: Square | null = null; // consumed after one render (Quadra's trick)
+let capturedGhost: { at: Square; player: Player } | null = null;
+let flashTimer: ReturnType<typeof setTimeout> | undefined;
+// Long enough to read, short enough to finish before the next AI hop (~550ms).
+const CAPTURE_FLASH_MS = 480;
+
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`d-${id}`) as T;
 
 const key = (square: Square): string => `${square.row},${square.col}`;
+const sameSquare = (first: Square | null, second: Square | null): boolean =>
+  first !== null && second !== null && first.row === second.row && first.col === second.col;
+
+function setCapturedGhost(ghost: { at: Square; player: Player } | null): void {
+  clearTimeout(flashTimer);
+  capturedGhost = ghost;
+  if (ghost) {
+    flashTimer = setTimeout(() => {
+      capturedGhost = null;
+      renderGame();
+    }, CAPTURE_FLASH_MS);
+  }
+}
+
+function clearHighlights(): void {
+  lastMove = null;
+  arriveAt = null;
+  setCapturedGhost(null);
+}
 
 function aiPlayer(state: GameState): Player {
   return otherPlayer(state.humanPlayer);
@@ -83,8 +112,10 @@ function isAiTurn(state: GameState): boolean {
 function clearTimers(): void {
   clearTimeout(aiTimer);
   clearTimeout(endTimer);
+  clearTimeout(flashTimer);
   aiTimer = undefined;
   endTimer = undefined;
+  flashTimer = undefined;
   aiThinking = false;
 }
 
@@ -140,12 +171,23 @@ function renderBoard(
       if (selected && selected.row === row && selected.col === col) cell.classList.add("selected");
       if (targets.has(key(square))) cell.classList.add("target");
       if (movable.has(key(square))) cell.classList.add("movable");
+      if (interactive && lastMove) {
+        if (sameSquare(lastMove.from, square)) cell.classList.add("last-from");
+        if (sameSquare(lastMove.to, square)) cell.classList.add("last-to");
+      }
 
       const piece = state.board[row][col];
       if (piece) {
         const disc = document.createElement("span");
         disc.className = `dame-piece ${piece.player}${piece.kind === "king" ? " king" : ""}`;
+        if (interactive && sameSquare(arriveAt, square)) disc.classList.add("arrive");
         cell.append(disc);
+      } else if (interactive && capturedGhost && sameSquare(capturedGhost.at, square)) {
+        // The captured piece is already gone from state — draw a fading ghost of
+        // it so the player sees exactly which stone was taken.
+        const ghost = document.createElement("span");
+        ghost.className = `dame-piece ${capturedGhost.player} captured-ghost`;
+        cell.append(ghost);
       }
       container.append(cell);
     }
@@ -177,6 +219,7 @@ function renderGame(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   renderBoard(byId("board"), game, true);
+  arriveAt = null; // consume: the arrival plays on exactly one render
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +228,7 @@ function renderGame(): void {
 function onCellClick(square: Square): void {
   if (!game || game.status !== "playing" || aiThinking) return;
   if (isAiTurn(game)) return; // not the human's turn
+  setCapturedGhost(null); // a tap means the flash has served its purpose
 
   const moves = legalMoves(game);
   const fromSelected = selected
@@ -210,7 +254,12 @@ function onCellClick(square: Square): void {
 /** Apply one step (slide or single jump), then route what's next. */
 function step(move: Move): void {
   if (!game) return;
+  const mover = game.currentPlayer;
   game = applyMove(game, move);
+  // Feedback: glow the path, pop the arrival, ghost the captured piece.
+  lastMove = { from: move.from, to: move.to };
+  arriveAt = move.to;
+  setCapturedGhost(move.captured ? { at: move.captured, player: otherPlayer(mover) } : null);
 
   if (game.status !== "playing") {
     clearGame(); // finished — don't offer "Fortsetzen"
@@ -309,6 +358,7 @@ function renderHome(): void {
 // ---------------------------------------------------------------------------
 function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = true): void {
   clearTimers();
+  clearHighlights();
   // Red always opens; the human takes red when they choose to go first.
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "black" });
   selected = null;
@@ -321,6 +371,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
 function resumeGame(): void {
   if (!game) return;
   clearTimers();
+  clearHighlights();
   selected = game.mustContinueFrom;
   showScreen("game");
   renderGame();
@@ -329,6 +380,7 @@ function resumeGame(): void {
 
 function goHome(): void {
   clearTimers();
+  clearHighlights();
   selected = null;
   renderHome();
   showScreen("home");
