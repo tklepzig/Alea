@@ -60,7 +60,7 @@ const games: GameEntry[] = [
     id: "dame",
     name: "Dame",
     themeClass: "theme-dame",
-    themeColor: "#241a34",
+    themeColor: "#0e2830",
     controller: initDame({ onExit: goHub }),
   },
   {
@@ -74,7 +74,7 @@ const games: GameEntry[] = [
     id: "halma",
     name: "Halma",
     themeClass: "theme-halma",
-    themeColor: "#2e1622",
+    themeColor: "#20240f",
     controller: initHalma({ onExit: goHub }),
   },
   {
@@ -154,7 +154,8 @@ for (const game of games) {
 const offlineStatusEl = byId("offline-status");
 const offlineRefreshEl = byId<HTMLButtonElement>("offline-refresh");
 
-const renderOfflineStatus = ({ state, missing }: OfflineStatus): void => {
+// Strings stay English — this is infrastructure status, not game UI.
+const paintOfflineStatus = ({ state, missing }: OfflineStatus): void => {
   offlineStatusEl.classList.toggle("ready", state === "ready");
   offlineStatusEl.classList.toggle(
     "warn",
@@ -174,8 +175,42 @@ const renderOfflineStatus = ({ state, missing }: OfflineStatus): void => {
   }
 };
 
+// A re-check often lands back on the same "ready" state, so without explicit
+// feedback the ↻ press looks like it did nothing. Spin the button and hold a
+// "Checking …" label for a beat, then show the result (flashing "✓ Updated" when
+// it's ready) so the click always reads as an action.
+let lastOfflineStatus: OfflineStatus = { state: "caching", missing: [] };
+let refreshing = false;
+
+const renderOfflineStatus = (status: OfflineStatus): void => {
+  lastOfflineStatus = status;
+  if (!refreshing) paintOfflineStatus(status); // hold "Checking …" while refreshing
+};
+
 const readiness = observeOfflineReadiness({ onStatus: renderOfflineStatus });
-offlineRefreshEl.addEventListener("click", () => readiness.refresh());
+
+offlineRefreshEl.addEventListener("click", () => {
+  if (refreshing) return;
+  refreshing = true;
+  offlineRefreshEl.classList.add("spinning");
+  offlineStatusEl.classList.remove("ready", "warn");
+  offlineStatusEl.hidden = false;
+  offlineStatusEl.textContent = "Checking …";
+  readiness.refresh();
+  window.setTimeout(() => {
+    refreshing = false;
+    offlineRefreshEl.classList.remove("spinning");
+    if (lastOfflineStatus.state === "ready") {
+      offlineStatusEl.classList.add("ready");
+      offlineStatusEl.textContent = "✓ Updated";
+      window.setTimeout(() => {
+        if (!refreshing) paintOfflineStatus(lastOfflineStatus);
+      }, 1100);
+    } else {
+      paintOfflineStatus(lastOfflineStatus);
+    }
+  }, 900);
+});
 
 // ---------------------------------------------------------------------------
 // Boot

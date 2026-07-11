@@ -18,7 +18,7 @@ body.theme-ciphra {
 
 body.theme-dame {
   @extend %colourShades;
-  --hue: 300;
+  --hue: 220; // cyan/azure
   --l-base: 0.36;
   --c-base: 0.11;
   --l-base-light: 0.46;
@@ -36,11 +36,11 @@ body.theme-muehle {
 
 body.theme-halma {
   @extend %colourShades;
-  --hue: 350;
-  --l-base: 0.37;
-  --c-base: 0.11;
-  --l-base-light: 0.47;
-  --c-base-light: 0.14;
+  --hue: 110; // muted olive / khaki green
+  --l-base: 0.46;
+  --c-base: 0.085;
+  --l-base-light: 0.56;
+  --c-base-light: 0.1;
 }
 
 body.theme-solohalma {
@@ -525,6 +525,23 @@ button.peg {
 // HUB — startpage
 // ===========================================================================
 .view-hub {
+  // Cap the startpage to the viewport so the footer (offline badge) is always
+  // visible: the game list scrolls INSIDE the panel, not the whole page. Only
+  // the hub does this — game screens keep their own layout. The hub has no text
+  // inputs, so a fixed height here can't trap one under a mobile keyboard.
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: calc(100dvh - 2 * var(--padding));
+  min-height: 0;
+
+  // Ada's panel is already grid(auto 1fr auto) + article overflow:auto, but its
+  // bare 1fr won't shrink below content, so a bounded panel would scroll header
+  // AND footer. minmax(0,1fr) lets the article row shrink so only it scrolls.
+  .panel {
+    min-height: 0;
+    overflow: hidden;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
   .wordmark .logo {
     display: inline-grid;
     grid-auto-flow: column;
@@ -652,7 +669,7 @@ button.peg {
 .emblem.halma .b {
   left: 32%;
   top: 32%;
-  background: #7a67c8;
+  background: #5f86c8;
 }
 .emblem.halma .c {
   left: 62%;
@@ -765,6 +782,16 @@ button.peg {
   }
   &:focus-visible {
     outline: var(--border-width) solid oklch(var(--500));
+  }
+  // Spins while a re-check is running, so the ↻ press has visible feedback.
+  &.spinning {
+    color: var(--color100);
+    animation: spin 0.7s linear infinite;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
