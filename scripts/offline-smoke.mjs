@@ -98,6 +98,9 @@ try {
   await page.goto(`${baseUrl}#/ciphra`);
   await expectVisible("#c-btn-new", "Ciphra opens offline");
 
+  await page.goto(`${baseUrl}#/dame`);
+  await expectVisible("#d-btn-ai", "Dame opens offline");
+
   // The SW itself and every asset must have come from the cache.
   if (failures.length > 0) {
     throw new Error(`OFFLINE SMOKE FAILED: requests failed while offline:\n${failures.join("\n")}`);

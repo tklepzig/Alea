@@ -16,6 +16,15 @@ body.theme-ciphra {
   --c-base-light: 0.15;
 }
 
+body.theme-dame {
+  @extend %colourShades;
+  --hue: 300;
+  --l-base: 0.36;
+  --c-base: 0.11;
+  --l-base-light: 0.46;
+  --c-base-light: 0.14;
+}
+
 // Self-hosted Open Sans (Ada's default family) so the PWA renders identically
 // offline. Refresh with scripts/update-fonts.sh.
 @font-face {
@@ -159,6 +168,53 @@ body.theme-ciphra {
   margin-top: 2px;
 }
 
+// Segmented two-state (and four-state) controls — shared by every game's setup
+// screen. Theme vars resolve per active body theme class.
+.segmented {
+  display: grid;
+  grid-auto-flow: column;
+  border: var(--border-width-sm) solid oklch(var(--700));
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+// Four options don't fit beside the label on a narrow phone, so the row stacks
+// (label on top, control full-width below) and the segments share the width
+// equally instead of sizing to their text.
+.set-row.stack {
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+  gap: var(--spacing-sm);
+}
+.segmented.quad {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(4, 1fr);
+}
+.segmented.quad .seg {
+  padding-inline: 0.5rem;
+  text-align: center;
+}
+.seg {
+  padding: 0.55rem 1rem;
+  background: oklch(var(--800));
+  color: oklch(var(--100) / 0.6);
+  border: none;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+
+  & + .seg {
+    border-left: var(--border-width-sm) solid oklch(var(--700));
+  }
+  &.active {
+    background: oklch(var(--500));
+    color: #03121b;
+  }
+  &:focus-visible {
+    outline: var(--border-width) solid oklch(var(--500));
+    outline-offset: -2px;
+  }
+}
+
 // ===========================================================================
 // End screens (shared hero shape; result colours are per game)
 // ===========================================================================
@@ -269,6 +325,40 @@ body.theme-ciphra {
 }
 .d.yellow {
   background: var(--disc-yellow);
+}
+
+// Dame: round men in red / charcoal. A king carries a ✦ crown mark. Sizes l/s
+// mirror .disc; on the board the piece fills its square (see .view-dame).
+.dame-piece {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.62em;
+  line-height: 1;
+}
+.dame-piece.red {
+  background: var(--disc-red);
+}
+.dame-piece.black {
+  background: #2c2c36;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 -3px 7px rgba(0, 0, 0, 0.5);
+}
+.dame-piece.king::after {
+  content: "✦";
+}
+.dame-piece.s {
+  width: 22px;
+  height: 22px;
+}
+.dame-piece.l {
+  width: 44px;
+  height: 44px;
 }
 
 .peg {
@@ -399,6 +489,8 @@ button.peg {
 }
 .card-tokens .tok.red { background: var(--disc-red); }
 .card-tokens .tok.yellow { background: var(--disc-yellow); }
+.card-tokens .tok.dame-red { background: var(--disc-red); }
+.card-tokens .tok.dame-black { background: #2c2c36; }
 .card-body {
   display: grid;
   gap: 2px;
@@ -585,52 +677,6 @@ button.peg {
   }
   .final-board {
     margin-inline: auto;
-  }
-
-  // Setup — segmented two-state controls
-  .segmented {
-    display: grid;
-    grid-auto-flow: column;
-    border: var(--border-width-sm) solid oklch(var(--700));
-    border-radius: var(--border-radius);
-    overflow: hidden;
-  }
-  // Four options don't fit beside the label on a narrow phone, so the row stacks
-  // (label on top, control full-width below) and the segments share the width
-  // equally instead of sizing to their text.
-  .set-row.stack {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
-    gap: var(--spacing-sm);
-  }
-  .segmented.quad {
-    grid-auto-flow: row;
-    grid-template-columns: repeat(4, 1fr);
-  }
-  .segmented.quad .seg {
-    padding-inline: 0.5rem;
-    text-align: center;
-  }
-  .seg {
-    padding: 0.55rem 1rem;
-    background: oklch(var(--800));
-    color: oklch(var(--100) / 0.6);
-    border: none;
-    font-weight: 600;
-    font-size: var(--text-sm);
-    cursor: pointer;
-
-    & + .seg {
-      border-left: var(--border-width-sm) solid oklch(var(--700));
-    }
-    &.active {
-      background: oklch(var(--500));
-      color: #03121b;
-    }
-    &:focus-visible {
-      outline: var(--border-width) solid oklch(var(--500));
-      outline-offset: -2px;
-    }
   }
 
   // End screen (win / draw)
@@ -934,5 +980,127 @@ button.peg {
     color: oklch(var(--100) / 0.5);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+}
+
+// ===========================================================================
+// DAME — English draughts. 8×8 board of dark/light squares; round men in red /
+// charcoal; a crowned man (Dame) shows a ✦. Purple theme via body.theme-dame.
+// ===========================================================================
+.view-dame {
+  .title.turn.red {
+    color: var(--disc-red);
+  }
+  .title.turn.black {
+    color: oklch(var(--100) / 0.85);
+  }
+
+  .wordmark .logo {
+    display: inline-grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3px;
+  }
+  .wordmark .logo .dm {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .dm.red {
+    background: var(--disc-red);
+  }
+  .dm.black {
+    background: #2c2c36;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+  }
+
+  .hero-discs {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  // Game screen: appbar on top, board fills the middle and is centred, hint below.
+  #d-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  .dame-board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: 100%;
+    max-width: 30rem;
+    aspect-ratio: 1;
+    padding: clamp(5px, 1.6%, 12px);
+    background: oklch(var(--950));
+    border: 2px solid oklch(var(--700));
+    border-radius: clamp(8px, 2.4%, 16px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.06),
+      var(--box-shadow);
+    overflow: hidden;
+  }
+  .sq {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: none;
+    aspect-ratio: 1;
+  }
+  .sq.light {
+    background: oklch(var(--700) / 0.35);
+  }
+  .sq.dark {
+    background: oklch(var(--950));
+    cursor: pointer;
+  }
+  button.sq:disabled {
+    cursor: default;
+  }
+  .sq .dame-piece {
+    width: 80%;
+    height: 80%;
+    font-size: clamp(9px, 3.2vw, 15px);
+  }
+
+  // Move hints: playable pieces glow, the picked-up square is lit, and each
+  // legal destination shows a dot.
+  .dame-board:not(.locked) .sq.movable .dame-piece {
+    box-shadow:
+      inset 0 0 0 2px oklch(var(--500)),
+      inset 0 -3px 7px rgba(0, 0, 0, 0.4);
+  }
+  .sq.selected {
+    background: oklch(var(--500) / 0.4);
+  }
+  .sq.target::after {
+    content: "";
+    width: 34%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: oklch(var(--500) / 0.85);
+    box-shadow: 0 0 0 3px oklch(var(--500) / 0.25);
+  }
+  .sq.dark:focus-visible {
+    outline: var(--border-width) solid #fff;
+    outline-offset: -3px;
+  }
+
+  .end-glyph.red {
+    color: var(--disc-red);
+  }
+  .end-glyph.black {
+    color: oklch(var(--100) / 0.7);
+  }
+  .final-board {
+    margin-inline: auto;
+    max-width: 22rem;
   }
 }

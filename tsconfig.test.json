@@ -12,7 +12,11 @@
     "games/ciphra/game.ts",
     "games/ciphra/game.test.ts",
     "games/ciphra/storage.ts",
-    "games/ciphra/storage.test.ts"
+    "games/ciphra/storage.test.ts",
+    "games/dame/game.ts",
+    "games/dame/game.test.ts",
+    "games/dame/storage.ts",
+    "games/dame/storage.test.ts"
   ],
   "exclude": []
 }

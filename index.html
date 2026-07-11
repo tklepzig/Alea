@@ -58,6 +58,16 @@
               </span>
               <span class="card-chip" id="chip-ciphra" hidden>Spiel läuft</span>
             </button>
+            <button class="game-card" id="card-dame" type="button">
+              <span class="card-tokens grid2">
+                <i class="tok dame-red"></i><i class="tok dame-black"></i><i class="tok dame-black"></i><i class="tok dame-red"></i>
+              </span>
+              <span class="card-body">
+                <span class="card-name">Dame</span>
+                <span class="card-desc">Schlagen, was geht — gegen die KI oder zu zweit.</span>
+              </span>
+              <span class="card-chip" id="chip-dame" hidden>Spiel läuft</span>
+            </button>
           </article>
           <footer>
             <span class="offline-status" id="offline-status" hidden></span>
@@ -369,6 +379,146 @@
               </div>
               <p class="note">Weniger Stifte als die Code-Länge → einige Farben sind gar nicht im Code. Der Hinweis verrät nicht, <i>welcher</i> Stift — das ist das Rätsel.</p>
               <button class="command primary" id="c-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- DAME — English draughts (ids prefixed d-)                       -->
+      <!-- ############################################################### -->
+      <section class="view view-dame" id="view-dame" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="d-screen-home">
+          <div class="appbar">
+            <button class="iconbtn" id="d-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <div class="wordmark">
+              <span class="logo">
+                <i class="dm red"></i><i class="dm black"></i><i class="dm black"></i><i class="dm red"></i>
+              </span>
+              <span class="name">DAME</span>
+            </div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-discs">
+                <span class="dame-piece l red"></span><span class="dame-piece l black"></span><span class="dame-piece l red king"></span><span class="dame-piece l black"></span>
+              </div>
+              <p class="tagline">Schlage die Steine deines Gegners — wer zuletzt ziehen kann, gewinnt.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="d-btn-ai" type="button">Gegen KI</button>
+            <button class="command cta" id="d-btn-local" type="button">Lokal (2 Spieler)</button>
+            <button class="command cta outline" id="d-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="d-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- =========================== SETUP ============================ -->
+        <section class="screen" id="d-screen-setup" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="d-setup-back" type="button" aria-label="Zurück">←</button>
+            <div class="title">Gegen KI</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header>Schwierigkeit</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
+                <div class="segmented quad" id="d-seg-difficulty" role="group" aria-label="Schwierigkeit">
+                  <button class="seg" type="button" data-value="easy">Leicht</button>
+                  <button class="seg" type="button" data-value="medium">Mittel</button>
+                  <button class="seg" type="button" data-value="hard">Schwer</button>
+                  <button class="seg" type="button" data-value="expert">Experte</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel">
+            <header>Erster Zug</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
+                <div class="segmented" id="d-seg-first" role="group" aria-label="Wer beginnt">
+                  <button class="seg" type="button" data-value="human">Du</button>
+                  <button class="seg" type="button" data-value="ai">KI</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="d-btn-start-ai" type="button">Spiel starten</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="d-screen-game" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="d-game-back" type="button" aria-label="Startseite">←</button>
+            <div class="title turn" id="d-game-title">Rot ist dran</div>
+            <button class="iconbtn" id="d-game-restart" type="button" aria-label="Neu starten">↻</button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="dame-board" id="d-board"></div>
+          </div>
+
+          <p class="annot" id="d-game-annot">Wähle einen Stein und dann sein Ziel.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="d-screen-end" hidden>
+          <div class="appbar">
+            <button class="iconbtn" id="d-end-back" type="button" aria-label="Startseite">←</button>
+            <div class="title" id="d-end-bar">Ergebnis</div>
+            <span class="iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="d-end-glyph"></div>
+            <div class="end-title" id="d-end-title"></div>
+            <div class="end-sub" id="d-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="dame-board final-board" id="d-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta primary" id="d-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="d-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="d-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Zwei Spieler — Rot und Schwarz — ziehen abwechselnd ihre Steine diagonal vorwärts auf die dunklen Felder. Rot beginnt.</p>
+              <div class="legend">
+                <div class="li"><span class="dame-piece s red"></span><span>Schlagen ist Pflicht: Ist ein Schlag möglich, musst du ihn ausführen.</span></div>
+                <div class="li"><span class="dame-piece s red king"></span><span>Erreicht ein Stein die letzte Reihe, wird er zur <b>Dame</b> und darf auch rückwärts ziehen.</span></div>
+              </div>
+              <p class="note">Ein Stein schlägt, indem er diagonal über einen gegnerischen Stein auf das freie Feld dahinter springt. Mehrfachsprünge zählen als ein Zug. Wer keinen Zug mehr hat, verliert.</p>
+              <button class="command primary" id="d-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>
           </section>

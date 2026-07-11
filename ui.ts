@@ -13,8 +13,9 @@ import { APP_NAME } from "./shell/app.js";
 import type { GameController } from "./shell/game-controller.js";
 import { initQuadra } from "./games/quadra/ui.js";
 import { initCiphra } from "./games/ciphra/ui.js";
+import { initDame } from "./games/dame/ui.js";
 
-type GameId = "quadra" | "ciphra";
+type GameId = "quadra" | "ciphra" | "dame";
 type ViewId = "hub" | GameId;
 
 interface GameEntry {
@@ -51,6 +52,13 @@ const games: GameEntry[] = [
     themeClass: "theme-ciphra",
     themeColor: "#23400f",
     controller: initCiphra({ onExit: goHub }),
+  },
+  {
+    id: "dame",
+    name: "Dame",
+    themeClass: "theme-dame",
+    themeColor: "#241a34",
+    controller: initDame({ onExit: goHub }),
   },
 ];
 
