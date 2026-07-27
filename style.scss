@@ -135,6 +135,12 @@ body.light {
   // flips them to a dark ink so they stay visible on light boards.
   --ring-strong: #fff;
   --ring-soft: rgba(255, 255, 255, 0.7);
+
+  // Layout constants shared across rules: the app column width (shell + the
+  // desktop board breakout math) and the game-screen chrome the desktop board
+  // height cap subtracts (appbar + undo + hint + gaps + body padding).
+  --app-col: 30rem;
+  --board-chrome: 12rem;
 }
 
 // The HTML `hidden` attribute must beat component display rules (e.g. `.command`
@@ -148,7 +154,7 @@ body.light {
 // visible at a time, and one screen within a game
 // ===========================================================================
 .app {
-  max-width: 30rem;
+  max-width: var(--app-col);
   margin: 0 auto;
 }
 @media (min-width: 640px) {
@@ -157,12 +163,12 @@ body.light {
     display: grid;
     align-content: safe center;
   }
-  // Give the shell a definite width so it fills to 30rem instead of
+  // Give the shell a definite width so it fills to --app-col instead of
   // shrink-wrapping to content — otherwise the auto grid track sizes to the
   // widest element (an appbar title), and boards jump in size when the title
   // text changes length. 30rem < 640px, so this never overflows the breakpoint.
   .app {
-    width: 30rem;
+    width: var(--app-col);
   }
 }
 
@@ -1878,5 +1884,62 @@ button.peg {
   .final-board {
     margin-inline: auto;
     max-width: 18rem;
+  }
+}
+
+// ===========================================================================
+// Desktop — the board is the point of a game screen, so let it use the screen.
+// The app column stays 30rem (menus and text read best narrow); only the board
+// row breaks out of it, centred on the viewport, and each board is capped by
+// the viewport height so the screen chrome (appbar, undo, hint) still fits
+// without scrolling. 12rem approximates that chrome. The min-height guard
+// keeps landscape phones on the mobile layout — there the height cap would
+// shrink boards below playable size.
+// ===========================================================================
+@media (min-width: 640px) and (min-height: 640px) {
+  // The breakout sizes .board-wrap to exactly 100vw minus the body padding,
+  // but 100vw includes a classic (non-overlay) scrollbar — clip the overshoot
+  // instead of growing a permanent horizontal scrollbar.
+  body {
+    overflow-x: clip;
+  }
+
+  .board-wrap {
+    // Break out of the centred app column to the full viewport width (minus
+    // the body padding); the board stays centred within.
+    margin-inline: calc((var(--app-col) - (100vw - 2 * var(--padding))) / 2);
+  }
+
+  .view-quadra .board-wrap .board {
+    max-width: min(56rem, calc((100dvh - var(--board-chrome)) * 7 / 6));
+  }
+  .view-dame .board-wrap .dame-board {
+    max-width: min(50rem, calc(100dvh - var(--board-chrome)));
+  }
+  .view-muehle .board-wrap .muehle-board {
+    max-width: min(46rem, calc(100dvh - var(--board-chrome)));
+  }
+  .view-halma .board-wrap .halma-board {
+    max-width: min(50rem, calc(100dvh - var(--board-chrome)));
+  }
+  .view-solohalma .board-wrap .solo-board {
+    max-width: min(42rem, calc(100dvh - var(--board-chrome)));
+  }
+
+  // Ciphra has no square board — its field grows by scaling the pegs instead.
+  .view-ciphra .peg.m,
+  .view-ciphra .slot.m {
+    width: 44px;
+    height: 44px;
+  }
+  .view-ciphra .peg.l,
+  .view-ciphra .slot.l {
+    width: 52px;
+    height: 52px;
+  }
+  // The tray's default 2.5rem track minimum fits 44px pegs, not 52px ones —
+  // widen it so a 10-colour palette doesn't crowd out of its cells.
+  .view-ciphra .tray .pegs {
+    grid-template-columns: repeat(auto-fit, minmax(3.75rem, 1fr));
   }
 }
