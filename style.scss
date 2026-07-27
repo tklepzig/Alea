@@ -52,6 +52,67 @@ body.theme-solohalma {
   --c-base-light: 0.13;
 }
 
+// ===========================================================================
+// Light theme — app-wide, toggled from the hub (persisted as alea.theme).
+// Inverts the shade ramp in place: same hue per game theme, flipped lightness,
+// so every existing oklch(var(--N)) usage lands on the right side of the
+// contrast axis (--950 page ≈ near-white, --100 text ≈ dark). Every derived
+// var must be redeclared here: custom properties freeze at computed-value
+// time, so the hub would otherwise inherit :root's dark --colorN.
+// Placed after the theme-X blocks so it wins the same-specificity cascade.
+body.light {
+  color-scheme: light;
+
+  --100: 0.27 0.05 var(--hue); // primary text — dark, hue-tinted
+  --500: 0.52 calc(var(--c-base-light) + 0.04) var(--hue); // accent
+  --600: 0.72 0.05 var(--hue);
+  --700: 0.82 0.035 var(--hue); // borders
+  --800: 0.9 0.025 var(--hue); // control surfaces
+  --950: 0.965 0.01 var(--hue); // page background
+
+  --color100: oklch(var(--100));
+  --color500: oklch(var(--500));
+  --color600: oklch(var(--600));
+  --color700: oklch(var(--700));
+  --color800: oklch(var(--800));
+  --color950: oklch(var(--950));
+
+  --bg-body: var(--color950);
+  --fg-body: var(--color100);
+  --panel-bg: oklch(var(--500) / 0.1);
+  --box-shadow: 0 0 6px 0 rgba(0, 0, 0, 0.22);
+
+  // Rings/outlines that are white on the dark boards flip to a dark ink.
+  --ring-strong: #22303a;
+  --ring-soft: rgba(34, 48, 58, 0.65);
+
+  // Dialogs float over the dimmed backdrop — the translucent panel wash would
+  // read dark behind light-mode text, so give it a solid light surface.
+  .howto .panel {
+    background: var(--color950);
+  }
+
+  // A handful of literal colours are tuned for dark backgrounds — darken them.
+  .title.turn.yellow,
+  .end-title.yellow,
+  .end-glyph.yellow {
+    color: #9c7c0e;
+  }
+  .title.turn.blue,
+  .end-glyph.blue {
+    color: #2b6fd4;
+  }
+  .view-ciphra .end-title.win {
+    color: oklch(0.55 0.15 150);
+  }
+  .view-ciphra .end-title.lose {
+    color: oklch(0.52 0.18 29);
+  }
+  .offline-status.warn {
+    color: oklch(0.52 0.16 29);
+  }
+}
+
 // Self-hosted Open Sans (Ada's default family) so the PWA renders identically
 // offline. Refresh with scripts/update-fonts.sh.
 @font-face {
@@ -69,6 +130,11 @@ body.theme-solohalma {
   --board-blue: #0e3c8c;
   --board-blue-edge: #0a2a5e;
   --hole-empty: #08245a;
+
+  // Board highlight rings/outlines — white on the dark boards; body.light
+  // flips them to a dark ink so they stay visible on light boards.
+  --ring-strong: #fff;
+  --ring-soft: rgba(255, 255, 255, 0.7);
 }
 
 // The HTML `hidden` attribute must beat component display rules (e.g. `.command`
@@ -1364,7 +1430,7 @@ button.peg {
     box-shadow: 0 0 0 3px oklch(var(--500) / 0.25);
   }
   .sq.dark:focus-visible {
-    outline: var(--border-width) solid #fff;
+    outline: var(--border-width) solid var(--ring-strong);
     outline-offset: -3px;
   }
 
@@ -1498,7 +1564,7 @@ button.peg {
       background: oklch(var(--500) / 0.55);
     }
     &:focus-visible {
-      outline: var(--border-width) solid #fff;
+      outline: var(--border-width) solid var(--ring-strong);
       outline-offset: -2px;
       border-radius: 50%;
     }
@@ -1532,7 +1598,7 @@ button.peg {
   .muehle-board:not(.locked) .mp.removable .muehle-stone {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.2),
-      0 0 0 3px #fff;
+      0 0 0 3px var(--ring-strong);
   }
 
   // Last-move trail: the origin's node lights up, the destination stone is ringed.
@@ -1627,7 +1693,7 @@ button.peg {
       cursor: default;
     }
     &:focus-visible {
-      outline: var(--border-width) solid #fff;
+      outline: var(--border-width) solid var(--ring-strong);
       outline-offset: -2px;
     }
   }
@@ -1661,7 +1727,7 @@ button.peg {
   .hc.chain .halma-stone {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.16),
-      0 0 0 3px #fff;
+      0 0 0 3px var(--ring-strong);
   }
   .hc.target::after {
     content: "";
@@ -1767,7 +1833,7 @@ button.peg {
       box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
     }
     &:focus-visible {
-      outline: var(--border-width) solid #fff;
+      outline: var(--border-width) solid var(--ring-strong);
       outline-offset: -2px;
       border-radius: 50%;
     }
@@ -1788,12 +1854,12 @@ button.peg {
     background: var(--solo-accent);
     box-shadow: 0 0 0 3px rgba(255, 206, 73, 0.35);
   }
-  // Pegs that can jump get a soft white ring (subtle — there can be many).
+  // Pegs that can jump get a soft ring (subtle — there can be many).
   .solo-board:not(.locked) .solo-peg.jumpable {
     box-shadow:
       inset 0 0 0 1px rgba(255, 255, 255, 0.18),
       inset 0 -3px 7px rgba(0, 0, 0, 0.4),
-      0 0 0 2px rgba(255, 255, 255, 0.7);
+      0 0 0 2px var(--ring-soft);
   }
   // The picked-up peg gets a bold amber ring + glow so it clearly stands out.
   .sh.selected .solo-peg {

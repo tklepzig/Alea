@@ -9,7 +9,8 @@ import {
   type OfflineStatus,
 } from "@tklepzig/offline-kit";
 
-import { APP_NAME } from "./shell/app.js";
+import { APP_ID, APP_NAME } from "./shell/app.js";
+import { safeGet, safeSet } from "./shell/safe-storage.js";
 import type { GameController } from "./shell/game-controller.js";
 import { initQuadra } from "./games/quadra/ui.js";
 import { initCiphra } from "./games/ciphra/ui.js";
@@ -26,12 +27,15 @@ interface GameEntry {
   name: string;
   /** Body class carrying the game's Ada theme override (null = hub theme). */
   themeClass: string | null;
-  /** Android status-bar tint while inside the game. */
+  /** Android status-bar tint while inside the game (dark / light theme). */
   themeColor: string;
+  themeColorLight: string;
   controller: GameController;
 }
 
 const HUB_THEME_COLOR = "#0d1424";
+const HUB_THEME_COLOR_LIGHT = "#eef1f8";
+const THEME_KEY = `${APP_ID}.theme`;
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(id) as T;
@@ -47,6 +51,7 @@ const games: GameEntry[] = [
     name: "Quadra",
     themeClass: null, // shares the hub's blue theme
     themeColor: "#0a2a5e",
+    themeColorLight: HUB_THEME_COLOR_LIGHT,
     controller: initQuadra({ onExit: goHub }),
   },
   {
@@ -54,6 +59,7 @@ const games: GameEntry[] = [
     name: "Ciphra",
     themeClass: "theme-ciphra",
     themeColor: "#23400f",
+    themeColorLight: "#edf6ed",
     controller: initCiphra({ onExit: goHub }),
   },
   {
@@ -61,6 +67,7 @@ const games: GameEntry[] = [
     name: "Dame",
     themeClass: "theme-dame",
     themeColor: "#0e2830",
+    themeColorLight: "#eaf3f8",
     controller: initDame({ onExit: goHub }),
   },
   {
@@ -68,6 +75,7 @@ const games: GameEntry[] = [
     name: "Mühle",
     themeClass: "theme-muehle",
     themeColor: "#0e2a2c",
+    themeColorLight: "#eaf5f6",
     controller: initMuehle({ onExit: goHub }),
   },
   {
@@ -75,6 +83,7 @@ const games: GameEntry[] = [
     name: "Halma",
     themeClass: "theme-halma",
     themeColor: "#20240f",
+    themeColorLight: "#f1f4ea",
     controller: initHalma({ onExit: goHub }),
   },
   {
@@ -82,6 +91,7 @@ const games: GameEntry[] = [
     name: "Solo-Halma",
     themeClass: "theme-solohalma",
     themeColor: "#1a1c3a",
+    themeColorLight: "#f0eff8",
     controller: initSolohalma({ onExit: goHub }),
   },
 ];
@@ -105,6 +115,37 @@ const themeColorMeta = document.querySelector<HTMLMetaElement>(
 
 let activeGame: GameEntry | null = null;
 
+// ---------------------------------------------------------------------------
+// Light/dark theme — one app-wide switch (hub appbar), persisted. The colour
+// work happens in CSS (body.light inverts the shade ramp); here we only toggle
+// the class and keep the Android status-bar tint in step.
+// ---------------------------------------------------------------------------
+let lightTheme = safeGet(THEME_KEY) === "light";
+const themeToggleEl = byId<HTMLButtonElement>("theme-toggle");
+
+function themeColorFor(entry: GameEntry | null): string {
+  if (lightTheme) return entry?.themeColorLight ?? HUB_THEME_COLOR_LIGHT;
+  return entry?.themeColor ?? HUB_THEME_COLOR;
+}
+
+function applyTheme(): void {
+  document.body.classList.toggle("light", lightTheme);
+  // The button shows what a press switches TO. Labels stay English on purpose
+  // ("Light/Dark Theme" as a term of art, like the offline status strings).
+  themeToggleEl.textContent = lightTheme ? "☾" : "☀";
+  themeToggleEl.setAttribute(
+    "aria-label",
+    lightTheme ? "Dark Theme" : "Light Theme",
+  );
+  themeColorMeta.content = themeColorFor(activeGame);
+}
+
+themeToggleEl.addEventListener("click", () => {
+  lightTheme = !lightTheme;
+  safeSet(THEME_KEY, lightTheme ? "light" : "dark");
+  applyTheme();
+});
+
 function render(): void {
   const view = parseView();
   const entering = games.find((game) => game.id === view) ?? null;
@@ -120,7 +161,7 @@ function render(): void {
   const themeClasses = games.flatMap((game) => (game.themeClass ? [game.themeClass] : []));
   document.body.classList.remove(...themeClasses);
   if (entering?.themeClass) document.body.classList.add(entering.themeClass);
-  themeColorMeta.content = entering?.themeColor ?? HUB_THEME_COLOR;
+  themeColorMeta.content = themeColorFor(entering);
   document.title = entering ? `${entering.name} · ${APP_NAME}` : APP_NAME;
 
   if (entering) {
@@ -216,4 +257,5 @@ offlineRefreshEl.addEventListener("click", () => {
 // Boot
 // ---------------------------------------------------------------------------
 window.addEventListener("hashchange", render);
+applyTheme();
 render();

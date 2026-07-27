@@ -19,6 +19,17 @@
     <script type="module" src="ui.js"></script>
   </head>
   <body>
+    <!-- Applied before first paint so a stored light theme doesn't flash dark.
+         Key, class, and hub tint mirror ui.ts (applyTheme), which owns them
+         from here on. -->
+    <script>
+      try {
+        if (localStorage.getItem("alea.theme") === "light") {
+          document.body.classList.add("light");
+          document.querySelector('meta[name="theme-color"]').content = "#eef1f8";
+        }
+      } catch {}
+    </script>
     <main class="app">
       <!-- ############################################################### -->
       <!-- HUB — startpage with one card per game                          -->
@@ -32,7 +43,7 @@
             </span>
             <span class="name">ALEA</span>
           </div>
-          <span class="iconbtn ghost" aria-hidden="true"></span>
+          <button class="iconbtn" id="theme-toggle" type="button" aria-label="Light Theme">☀</button>
         </div>
 
         <section class="panel">
