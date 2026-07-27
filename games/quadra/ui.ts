@@ -63,6 +63,10 @@ let settings: Settings = loadSettings();
 let game: GameState | null = loadGame();
 // The disc placed by the most recent move, so we can animate just that one.
 let lastDrop: Move | null = null;
+// States before each human move, for undo: one pop reverts the move plus the
+// AI reply that followed (the snapshot predates both). Not persisted — a
+// resumed game starts with a fresh stack, like Solo-Halma.
+let history: GameState[] = [];
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
@@ -183,6 +187,9 @@ function renderGame(): void {
     ? ""
     : "Tippe eine Spalte, um einen Stein zu setzen.";
 
+  (byId("btn-undo") as HTMLButtonElement).disabled =
+    history.length === 0 || game.status !== "playing";
+
   renderBoard(byId("board"), game, {
     interactive: true,
     locked,
@@ -209,6 +216,11 @@ function onColumnClick(column: number): void {
 /** Apply one move (whoever's turn it is), then render and route what's next. */
 function step(column: number): void {
   if (!game) return;
+  // Snapshot before a human move (states are immutable) — the AI's reply lands
+  // after the snapshot, so one undo takes back the whole exchange.
+  if (game.mode === "local" || game.currentPlayer === game.humanPlayer) {
+    history.push(game);
+  }
   lastDrop = { column, row: lowestEmptyRow(game.board, column) };
   game = applyMove(game, column);
 
@@ -227,6 +239,16 @@ function step(column: number): void {
   }
 }
 
+function undo(): void {
+  const previous = history.pop();
+  if (!previous) return;
+  clearTimers(); // also cancels a pending AI reply
+  game = previous;
+  lastDrop = null;
+  saveGame(game);
+  renderGame();
+}
+
 /** If it's the AI's turn, think briefly and then play. */
 function maybeScheduleAi(): void {
   if (!game || game.mode !== "ai" || game.status !== "playing") return;
@@ -236,7 +258,9 @@ function maybeScheduleAi(): void {
   renderGame(); // lock the board and show "KI denkt …"
   aiTimer = setTimeout(() => {
     aiThinking = false;
-    if (!game || game.status !== "playing") return;
+    // Re-check the turn too (like the sibling games): undo can flip it back to
+    // the human between scheduling and firing.
+    if (!game || game.status !== "playing" || game.currentPlayer !== aiPlayer(game)) return;
     const column = getAiMove(game.board, game.currentPlayer, game.difficulty);
     step(column);
   }, AI_DELAY_MS);
@@ -323,6 +347,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
     humanPlayer: humanFirst ? "red" : "yellow",
   });
   lastDrop = null;
+  history = [];
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -333,6 +358,7 @@ function resumeGame(): void {
   if (!game) return;
   clearTimers();
   lastDrop = null;
+  history = [];
   showScreen("game");
   renderGame();
   maybeScheduleAi(); // re-trigger the AI if it was its turn when we left
@@ -385,6 +411,7 @@ export function initQuadra(host: GameHost): GameController {
   });
 
   byId("game-back").addEventListener("click", goHome);
+  byId("btn-undo").addEventListener("click", undo);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

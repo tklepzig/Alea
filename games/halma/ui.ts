@@ -66,6 +66,9 @@ let settings: Settings = loadSettings();
 let game: GameState | null = loadGame();
 // The piece the human has picked up (moving), or the piece mid jump-chain.
 let selected: Square | null = null;
+// States at the start of each human turn, for undo: one pop reverts the whole
+// jump-chain plus the AI reply that followed. Not persisted.
+let history: GameState[] = [];
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
@@ -223,6 +226,8 @@ function paintStatus(): void {
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+  (byId("btn-undo") as HTMLButtonElement).disabled =
+    history.length === 0 || game.status !== "playing";
 }
 
 function renderGame(): void {
@@ -247,6 +252,9 @@ function goToEnd(): void {
 
 function humanMove(move: Move): void {
   if (!game) return;
+  // Snapshot at the start of the turn (not mid jump-chain), so one undo reverts
+  // the whole chain — and the AI reply, which lands after the snapshot.
+  if (!game.jumpingFrom) history.push(game);
   game = applyMove(game, move);
   noteMove(move);
 
@@ -311,6 +319,17 @@ function onCellClick(square: Square): void {
     (move) => (move.kind === "step" || move.kind === "jump") && move.from.row === square.row && move.from.col === square.col,
   );
   selected = ownMovable ? square : null;
+  renderGame();
+}
+
+function undo(): void {
+  const previous = history.pop();
+  if (!previous) return;
+  clearTimers(); // also cancels a pending AI reply or hop replay
+  clearHighlights();
+  game = previous;
+  selected = null;
+  saveGame(game);
   renderGame();
 }
 
@@ -422,6 +441,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
   clearHighlights();
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
   selected = null;
+  history = [];
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -433,6 +453,7 @@ function resumeGame(): void {
   clearTimers();
   clearHighlights();
   selected = null;
+  history = [];
   showScreen("game");
   renderGame();
   maybeScheduleAi();
@@ -486,6 +507,7 @@ export function initHalma(host: GameHost): GameController {
   });
 
   byId("game-back").addEventListener("click", goHome);
+  byId("btn-undo").addEventListener("click", undo);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

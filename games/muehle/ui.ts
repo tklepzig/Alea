@@ -111,6 +111,9 @@ let settings: Settings = loadSettings();
 let game: GameState | null = loadGame();
 // The point the human has picked up (moving/flying phase), or null.
 let selected: number | null = null;
+// States at the start of each human turn, for undo: one pop reverts the whole
+// turn (incl. a mill's take-a-stone step) plus the AI reply. Not persisted.
+let history: GameState[] = [];
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
@@ -322,6 +325,8 @@ function paintStatus(): void {
   title.textContent = titleText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+  (byId("btn-undo") as HTMLButtonElement).disabled =
+    history.length === 0 || game.status !== "playing";
 }
 
 function renderGame(): void {
@@ -367,6 +372,10 @@ function onPointClick(index: number): void {
 
 function step(move: Move): void {
   if (!game) return;
+  // Snapshot at the start of a human turn (not before the mill's capture step,
+  // which belongs to the same turn), so one undo reverts turn + AI reply.
+  const humanMover = game.mode === "local" || game.currentPlayer === game.humanPlayer;
+  if (humanMover && !game.pendingCapture) history.push(game);
   const mover = game.currentPlayer;
   game = applyMove(game, move);
   noteMove(move, mover);
@@ -386,6 +395,17 @@ function step(move: Move): void {
   selected = null; // a fresh selection is made for the next move
   renderGame();
   maybeScheduleAi();
+}
+
+function undo(): void {
+  const previous = history.pop();
+  if (!previous) return;
+  clearTimers(); // also cancels a pending AI reply or capture step
+  clearHighlights();
+  game = previous;
+  selected = null;
+  saveGame(game);
+  renderGame();
 }
 
 function maybeScheduleAi(): void {
@@ -474,6 +494,7 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
   clearHighlights();
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
   selected = null;
+  history = [];
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -485,6 +506,11 @@ function resumeGame(): void {
   clearTimers();
   clearHighlights();
   selected = null;
+  history = [];
+  // Resumed mid mill-capture there's no turn-start state to snapshot, and the
+  // remove step won't push one — seed the stack with the closest reachable
+  // boundary so the first post-resume turn stays undoable.
+  if (game.pendingCapture) history.push(game);
   showScreen("game");
   renderGame();
   maybeScheduleAi();
@@ -538,6 +564,7 @@ export function initMuehle(host: GameHost): GameController {
   });
 
   byId("game-back").addEventListener("click", goHome);
+  byId("btn-undo").addEventListener("click", undo);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

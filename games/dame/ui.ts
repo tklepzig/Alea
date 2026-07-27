@@ -77,6 +77,9 @@ let settings: Settings = loadSettings();
 let game: GameState | null = loadGame();
 // The piece the human has picked up (its legal targets are highlighted).
 let selected: Square | null = null;
+// States at the start of each human turn, for undo: one pop reverts the whole
+// turn (all hops of a multi-jump) plus the AI reply that followed. Not persisted.
+let history: GameState[] = [];
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
@@ -264,6 +267,8 @@ function paintStatus(): void {
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+  (byId("btn-undo") as HTMLButtonElement).disabled =
+    history.length === 0 || game.status !== "playing";
 }
 
 function renderGame(): void {
@@ -305,6 +310,10 @@ function onCellClick(square: Square): void {
 /** Apply one step (slide or single jump), then route what's next. */
 function step(move: Move): void {
   if (!game) return;
+  // Snapshot at the start of a human turn (not mid multi-jump), so one undo
+  // reverts the whole chain — and the AI reply, which lands after the snapshot.
+  const humanMover = game.mode === "local" || game.currentPlayer === game.humanPlayer;
+  if (humanMover && !game.mustContinueFrom) history.push(game);
   const mover = game.currentPlayer;
   const pendingBefore = game.pendingCaptures;
   game = applyMove(game, move);
@@ -345,6 +354,19 @@ function step(move: Move): void {
   selected = game.mustContinueFrom;
   renderGame();
   maybeScheduleAi();
+}
+
+function undo(): void {
+  const previous = history.pop();
+  if (!previous) return;
+  clearTimers(); // also cancels a pending AI reply or continuation hop
+  clearHighlights();
+  game = previous;
+  // Normally null (snapshots are turn starts); a mid-chain snapshot seeded by
+  // resumeGame keeps the continuing piece pinned, like resuming does.
+  selected = game.mustContinueFrom;
+  saveGame(game);
+  renderGame();
 }
 
 /** If it's the AI's turn (including a multi-jump continuation), think and play. */
@@ -456,6 +478,7 @@ function startGame(
     maxCapture,
   });
   selected = null;
+  history = [];
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -466,6 +489,11 @@ function resumeGame(): void {
   if (!game) return;
   clearTimers();
   clearHighlights();
+  history = [];
+  // Resumed mid multi-jump there's no turn-start state to snapshot, and the
+  // continuation hops won't push one — seed the stack with the closest
+  // reachable boundary so the first post-resume turn stays undoable.
+  if (game.mustContinueFrom) history.push(game);
   selected = game.mustContinueFrom;
   showScreen("game");
   renderGame();
@@ -538,6 +566,7 @@ export function initDame(host: GameHost): GameController {
   });
 
   byId("game-back").addEventListener("click", goHome);
+  byId("btn-undo").addEventListener("click", undo);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(
