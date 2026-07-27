@@ -34,10 +34,22 @@ const GAME_KEY = `${APP_ID}.dame.game`;
 const SETTINGS_KEY = `${APP_ID}.dame.settings`;
 
 // How long the AI "thinks" before its move — avoids an instant, jarring reply.
+// It also has to outlast the slide it follows: the AI's move rebuilds the board,
+// which would cut the human's piece off mid-flight. 550ms lands 150ms before a
+// one-cell slide ends (as it always has); a long flight pushes it out.
 const AI_DELAY_MS = 550;
-// Gap between the hops of a multi-jump — long enough for the slide (~0.7s, see
-// `.moving` in style.scss) to finish before the next hop redraws the board.
-const CONTINUE_MS = 800;
+const SLIDE_LEAD_MS = 150;
+// A one-cell hop reads well at 0.7s (`.moving` in style.scss), but a flying Dame
+// crossing seven cells at the same duration looks teleported — so stretch the
+// slide with the distance. Not linearly: full linear travel would crawl.
+const SLIDE_BASE_MS = 700;
+const SLIDE_PER_CELL_MS = 130;
+const SLIDE_MAX_MS = 1500;
+const slideMs = (cells: number): number =>
+  Math.min(SLIDE_MAX_MS, SLIDE_BASE_MS + (cells - 1) * SLIDE_PER_CELL_MS);
+// Breathing room between the hops of a multi-jump: the slide has to land before
+// the next hop redraws the board.
+const CONTINUE_GAP_MS = 100;
 // How long the final board stays visible before the end screen slides in.
 const END_DELAY_MS = 1150;
 
@@ -76,9 +88,14 @@ let endTimer: ReturnType<typeof setTimeout> | undefined;
 // taken. `moveAnim` carries the slide offset (in % of a piece width) and is
 // consumed after one render (Quadra's `lastDrop` trick), so it plays exactly once.
 let lastMove: { from: Square | null; to: Square } | null = null;
-let moveAnim: { at: Square; sx: number; sy: number } | null = null;
-let capturedGhost: { at: Square; player: Player } | null = null;
+let moveAnim: { at: Square; sx: number; sy: number; ms: number } | null = null;
+// The slide currently playing — a multi-jump waits it out before the next hop.
+let slideDuration = SLIDE_BASE_MS;
+// A whole multi-jump's worth of pieces leaves the board at once, so this is a list.
+let capturedGhosts: { at: Square; player: Player }[] = [];
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
+// The ghosts fade in ~0.6s (`capture-flash`), but clearing them re-renders the
+// board — so hold them until the slide they accompany has landed.
 const CAPTURE_FLASH_MS = 720;
 // One board cell = 125% of a piece's own width (the piece is 80% of the cell), so
 // translating a piece by this per column/row moves it exactly one cell.
@@ -91,21 +108,24 @@ const key = (square: Square): string => `${square.row},${square.col}`;
 const sameSquare = (first: Square | null, second: Square | null): boolean =>
   first !== null && second !== null && first.row === second.row && first.col === second.col;
 
-function setCapturedGhost(ghost: { at: Square; player: Player } | null): void {
+function setCapturedGhosts(ghosts: { at: Square; player: Player }[]): void {
   clearTimeout(flashTimer);
-  capturedGhost = ghost;
-  if (ghost) {
-    flashTimer = setTimeout(() => {
-      capturedGhost = null;
-      renderGame();
-    }, CAPTURE_FLASH_MS);
+  capturedGhosts = ghosts;
+  if (ghosts.length > 0) {
+    flashTimer = setTimeout(
+      () => {
+        capturedGhosts = [];
+        renderGame();
+      },
+      Math.max(CAPTURE_FLASH_MS, slideDuration + CONTINUE_GAP_MS),
+    );
   }
 }
 
 function clearHighlights(): void {
   lastMove = null;
   moveAnim = null;
-  setCapturedGhost(null);
+  setCapturedGhosts([]);
 }
 
 function aiPlayer(state: GameState): Player {
@@ -187,18 +207,26 @@ function renderBoard(
       if (piece) {
         const disc = document.createElement("span");
         disc.className = `dame-piece ${piece.player}${piece.kind === "king" ? " king" : ""}`;
+        // Jumped mid-chain but not swept off yet — mark it as already lost.
+        if (state.pendingCaptures.some((pending) => sameSquare(pending, square))) {
+          disc.classList.add("doomed");
+        }
         if (interactive && moveAnim && sameSquare(moveAnim.at, square)) {
           disc.classList.add("moving");
           disc.style.setProperty("--slide-x", `${moveAnim.sx}%`);
           disc.style.setProperty("--slide-y", `${moveAnim.sy}%`);
+          disc.style.setProperty("--slide-ms", `${moveAnim.ms}ms`);
         }
         cell.append(disc);
-      } else if (interactive && capturedGhost && sameSquare(capturedGhost.at, square)) {
-        // The captured piece is already gone from state — draw a fading ghost of
-        // it so the player sees exactly which stone was taken.
-        const ghost = document.createElement("span");
-        ghost.className = `dame-piece ${capturedGhost.player} captured-ghost`;
-        cell.append(ghost);
+      } else if (interactive) {
+        // The captured pieces are already gone from state — draw a fading ghost
+        // of each so the player sees exactly which stones were taken.
+        const ghost = capturedGhosts.find((candidate) => sameSquare(candidate.at, square));
+        if (ghost) {
+          const disc = document.createElement("span");
+          disc.className = `dame-piece ${ghost.player} captured-ghost`;
+          cell.append(disc);
+        }
       }
       container.append(cell);
     }
@@ -219,7 +247,11 @@ function annotText(state: GameState): string {
   if (aiThinking) return "";
   if (state.mustContinueFrom) return "Weiter schlagen — der Sprung geht noch!";
   const mustCapture = legalMoves(state).some((move) => move.captured !== null);
-  if (mustCapture) return "Schlagzwang — du musst schlagen.";
+  if (mustCapture) {
+    return state.maxCapture
+      ? "Mehrschlagzwang — du musst die längste Folge schlagen."
+      : "Schlagzwang — du musst schlagen.";
+  }
   return "Wähle einen Stein und dann sein Ziel.";
 }
 
@@ -247,7 +279,7 @@ function renderGame(): void {
 function onCellClick(square: Square): void {
   if (!game || game.status !== "playing" || aiThinking) return;
   if (isAiTurn(game)) return; // not the human's turn
-  setCapturedGhost(null); // a tap means the flash has served its purpose
+  setCapturedGhosts([]); // a tap means the flash has served its purpose
 
   const moves = legalMoves(game);
   const fromSelected = selected
@@ -274,24 +306,36 @@ function onCellClick(square: Square): void {
 function step(move: Move): void {
   if (!game) return;
   const mover = game.currentPlayer;
+  const pendingBefore = game.pendingCaptures;
   game = applyMove(game, move);
   // Feedback: glow the path, slide the piece in from its origin, ghost the taken piece.
   lastMove = { from: move.from, to: move.to };
+  slideDuration = slideMs(Math.abs(move.to.row - move.from.row));
   moveAnim = {
     at: move.to,
     sx: (move.from.col - move.to.col) * SLIDE_UNIT,
     sy: (move.from.row - move.to.row) * SLIDE_UNIT,
+    ms: slideDuration,
   };
-  setCapturedGhost(move.captured ? { at: move.captured, player: otherPlayer(mover) } : null);
+  // Captured pieces leave the board only when the turn ends — ghost them all then.
+  const swept =
+    game.pendingCaptures.length === 0
+      ? [...pendingBefore, ...(move.captured ? [move.captured] : [])]
+      : [];
+  setCapturedGhosts(swept.map((at) => ({ at, player: otherPlayer(mover) })));
 
   if (game.status !== "playing") {
     clearGame(); // finished — don't offer "Fortsetzen"
     selected = null;
     renderGame(); // show the final position first
-    endTimer = setTimeout(() => {
-      renderEnd();
-      showScreen("end");
-    }, END_DELAY_MS);
+    endTimer = setTimeout(
+      () => {
+        renderEnd();
+        showScreen("end");
+      },
+      // Never cut a long flight short.
+      Math.max(END_DELAY_MS, slideDuration + 450),
+    );
     return;
   }
 
@@ -311,8 +355,10 @@ function maybeScheduleAi(): void {
   // Only repaint the status text — the board is already rendered (and locked)
   // from the move that led here; a full rebuild would cut off its slide.
   paintStatus();
-  // Mid multi-jump, wait out the current hop's slide before the next redraw.
-  const gap = game.mustContinueFrom ? CONTINUE_MS : AI_DELAY_MS;
+  // Either way the current slide has to land before the AI redraws the board.
+  const gap = game.mustContinueFrom
+    ? slideDuration + CONTINUE_GAP_MS
+    : Math.max(AI_DELAY_MS, slideDuration - SLIDE_LEAD_MS);
   aiTimer = setTimeout(() => {
     aiThinking = false;
     if (!game || game.status !== "playing" || !isAiTurn(game)) return;
@@ -358,8 +404,11 @@ function renderEnd(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Setup screen (AI mode only)
+// Setup screen — both modes pass through it, since the ruleset is configurable
+// for a local game too; the KI-only panels are hidden in local mode.
 // ---------------------------------------------------------------------------
+let setupMode: Mode = "ai";
+
 function markSegment(groupId: string, value: string): void {
   for (const button of byId(groupId).querySelectorAll<HTMLButtonElement>(".seg")) {
     button.classList.toggle("active", button.dataset.value === value);
@@ -368,8 +417,14 @@ function markSegment(groupId: string, value: string): void {
 }
 
 function renderSetup(): void {
+  const local = setupMode === "local";
+  byId("setup-title").textContent = local ? "Lokal (2 Spieler)" : "Gegen KI";
+  byId("panel-difficulty").hidden = local;
+  byId("panel-first").hidden = local;
   markSegment("seg-difficulty", settings.difficulty);
   markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+  markSegment("seg-flying", settings.flyingKings ? "on" : "off");
+  markSegment("seg-maxcapture", settings.maxCapture ? "on" : "off");
 }
 
 // ---------------------------------------------------------------------------
@@ -383,11 +438,23 @@ function renderHome(): void {
 // ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
-function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = true): void {
+function startGame(
+  mode: Mode,
+  difficulty = settings.difficulty,
+  humanFirst = true,
+  flyingKings = settings.flyingKings,
+  maxCapture = settings.maxCapture,
+): void {
   clearTimers();
   clearHighlights();
   // Red always opens; the human takes red when they choose to go first.
-  game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "black" });
+  game = createGame({
+    mode,
+    difficulty,
+    humanPlayer: humanFirst ? "red" : "black",
+    flyingKings,
+    maxCapture,
+  });
   selected = null;
   saveGame(game);
   showScreen("game");
@@ -413,7 +480,8 @@ function goHome(): void {
   showScreen("home");
 }
 
-function openSetup(): void {
+function openSetup(mode: Mode): void {
+  setupMode = mode;
   renderSetup();
   showScreen("setup");
 }
@@ -425,14 +493,15 @@ export function initDame(host: GameHost): GameController {
   const howto = byId<HTMLDialogElement>("howto");
 
   byId("home-hub").addEventListener("click", host.onExit);
-  byId("btn-ai").addEventListener("click", openSetup);
-  byId("btn-local").addEventListener("click", () => startGame("local"));
+  byId("btn-ai").addEventListener("click", () => openSetup("ai"));
+  byId("btn-local").addEventListener("click", () => openSetup("local"));
   byId("btn-continue").addEventListener("click", resumeGame);
   byId("btn-howto").addEventListener("click", () => howto.showModal());
 
   byId("setup-back").addEventListener("click", goHome);
-  byId("btn-start-ai").addEventListener("click", () =>
-    startGame("ai", settings.difficulty, settings.humanFirst),
+  byId("btn-start").addEventListener("click", () =>
+    // In local mode "who starts" doesn't apply — red always opens.
+    startGame(setupMode, settings.difficulty, setupMode === "local" || settings.humanFirst),
   );
 
   byId("seg-difficulty").addEventListener("click", (event) => {
@@ -440,6 +509,22 @@ export function initDame(host: GameHost): GameController {
     const difficulties = ["easy", "medium", "hard", "expert"] as const;
     if (!difficulties.includes(value as (typeof difficulties)[number])) return;
     settings = { ...settings, difficulty: value as Settings["difficulty"] };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-flying").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, flyingKings: value === "on" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-maxcapture").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, maxCapture: value === "on" };
     saveSettings(settings);
     renderSetup();
   });
@@ -455,14 +540,26 @@ export function initDame(host: GameHost): GameController {
   byId("game-back").addEventListener("click", goHome);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
-    startGame(game.mode, game.difficulty, game.humanPlayer === "red");
+    startGame(
+      game.mode,
+      game.difficulty,
+      game.humanPlayer === "red",
+      game.flyingKings,
+      game.maxCapture,
+    );
   });
 
   byId("end-back").addEventListener("click", goHome);
   byId("btn-home").addEventListener("click", goHome);
   byId("btn-again").addEventListener("click", () => {
     if (!game) return;
-    startGame(game.mode, game.difficulty, game.humanPlayer === "red");
+    startGame(
+      game.mode,
+      game.difficulty,
+      game.humanPlayer === "red",
+      game.flyingKings,
+      game.maxCapture,
+    );
   });
 
   byId("howto-close").addEventListener("click", () => howto.close());

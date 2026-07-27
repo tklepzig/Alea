@@ -447,11 +447,11 @@
         <section class="screen" id="d-screen-setup" hidden>
           <div class="appbar">
             <button class="iconbtn" id="d-setup-back" type="button" aria-label="Zurück">←</button>
-            <div class="title">Gegen KI</div>
+            <div class="title" id="d-setup-title">Gegen KI</div>
             <span class="iconbtn ghost" aria-hidden="true"></span>
           </div>
 
-          <section class="panel">
+          <section class="panel" id="d-panel-difficulty">
             <header>Schwierigkeit</header>
             <article>
               <div class="set-row stack">
@@ -467,7 +467,7 @@
             <footer></footer>
           </section>
 
-          <section class="panel">
+          <section class="panel" id="d-panel-first">
             <header>Erster Zug</header>
             <article>
               <div class="set-row">
@@ -481,8 +481,29 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Regeln</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Fliegende Dame</div><div class="desc">Die Dame zieht und schlägt über die ganze Diagonale — statt nur ein Feld weit.</div></div>
+                <div class="segmented" id="d-seg-flying" role="group" aria-label="Fliegende Dame">
+                  <button class="seg" type="button" data-value="off">Aus</button>
+                  <button class="seg" type="button" data-value="on">Ein</button>
+                </div>
+              </div>
+              <div class="set-row stack">
+                <div><div class="lab">Mehrschlagzwang</div><div class="desc">Bei mehreren Schlagfolgen musst du die nehmen, die am meisten Steine schlägt.</div></div>
+                <div class="segmented" id="d-seg-maxcapture" role="group" aria-label="Mehrschlagzwang">
+                  <button class="seg" type="button" data-value="off">Aus</button>
+                  <button class="seg" type="button" data-value="on">Ein</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
-            <button class="command cta primary" id="d-btn-start-ai" type="button">Spiel starten</button>
+            <button class="command cta primary" id="d-btn-start" type="button">Spiel starten</button>
           </div>
         </section>
 
@@ -540,6 +561,8 @@
                 <div class="li"><span class="dame-piece s red king"></span><span>Erreicht ein Stein die letzte Reihe, wird er zur <b>Dame</b> und darf auch rückwärts ziehen.</span></div>
               </div>
               <p class="note">Ein Stein schlägt, indem er diagonal über einen gegnerischen Stein auf das freie Feld dahinter springt. Mehrfachsprünge zählen als ein Zug. Wer keinen Zug mehr hat, verliert.</p>
+              <p class="note">Vor dem Spiel wählbar: mit <b>Mehrschlagzwang</b> musst du unter mehreren Schlagfolgen die längste wählen — ohne ihn ist jeder Schlag erlaubt.</p>
+              <p class="note">Ebenfalls wählbar: mit <b>fliegender Dame</b> zieht die Dame beliebig weit über eine freie Diagonale und schlägt einen Gegner in beliebiger Entfernung — dahinter darf sie auf jedem freien Feld landen. Geschlagene Steine bleiben bis zum Ende des Zuges liegen: sie versperren die Diagonale und können nicht zweimal geschlagen werden.</p>
               <button class="command primary" id="d-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>

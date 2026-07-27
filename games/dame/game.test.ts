@@ -14,6 +14,7 @@ import {
   type Piece,
   type Player,
   type PieceKind,
+  type Square,
 } from "./game.js";
 
 /** Deterministic RNG (mulberry32) so AI tie-breaks are reproducible. */
@@ -55,12 +56,22 @@ function stateFrom(
     mode: "local",
     difficulty: "medium",
     humanPlayer: "red",
+    flyingKings: false,
+    maxCapture: false,
     mustContinueFrom: null,
+    pendingCaptures: [],
     status: "playing",
     winner: null,
     ...extra,
   };
 }
+
+/** Stable ordering so a set of squares can be compared without caring about it. */
+const bySquare = (first: Square, second: Square): number =>
+  first.row - second.row || first.col - second.col;
+
+const sameSquareAs = (square: Square, row: number, col: number): boolean =>
+  square.row === row && square.col === col;
 
 const move = (fromRow: number, fromCol: number, toRow: number, toCol: number): Move => ({
   from: { row: fromRow, col: fromCol },
@@ -170,6 +181,103 @@ describe("promotion", () => {
   });
 });
 
+describe("Mehrschlagzwang (maxCapture)", () => {
+  /** Two capture options: over (4,3) chains on to a second hop, over (4,5) stops. */
+  function twoOptions(): Board {
+    const board = emptyBoard();
+    place(board, 5, 4, "red");
+    place(board, 4, 3, "black");
+    place(board, 2, 1, "black"); // the second hop of the long line
+    place(board, 4, 5, "black"); // the short line
+    return board;
+  }
+
+  it("is off by default — any capture may be chosen", () => {
+    const moves = legalMoves(stateFrom(twoOptions(), "red"));
+    expect(moves.map((candidate) => candidate.to).sort(bySquare)).toEqual([
+      { row: 3, col: 2 },
+      { row: 3, col: 6 },
+    ]);
+  });
+
+  it("keeps only the captures that start the longest sequence", () => {
+    const moves = legalMoves(stateFrom(twoOptions(), "red", { maxCapture: true }));
+    expect(moves).toHaveLength(1);
+    expect(moves[0].to).toEqual({ row: 3, col: 2 });
+  });
+
+  it("rejects a shorter capture as illegal", () => {
+    const state = stateFrom(twoOptions(), "red", { maxCapture: true });
+    expect(isLegalMove(state, move(5, 4, 3, 6))).toBe(false);
+    expect(() => applyMove(state, move(5, 4, 3, 6))).toThrow();
+  });
+
+  it("keeps every line when two are equally long", () => {
+    const board = emptyBoard();
+    // Two mirrored double-capture lines — both take two men, so both stay legal.
+    place(board, 5, 0, "red");
+    place(board, 4, 1, "black");
+    place(board, 2, 1, "black");
+    place(board, 5, 4, "red");
+    place(board, 4, 5, "black");
+    place(board, 2, 5, "black");
+    const state = stateFrom(board, "red", { maxCapture: true });
+    const moves = legalMoves(state);
+    expect(moves.map((candidate) => candidate.from).sort(bySquare)).toEqual([
+      { row: 5, col: 0 },
+      { row: 5, col: 4 },
+    ]);
+    expect(isLegalMove(state, move(5, 0, 3, 2))).toBe(true);
+    expect(isLegalMove(state, move(5, 4, 3, 6))).toBe(true);
+  });
+
+  it("counts a crowning hop as the end of its sequence", () => {
+    const board = emptyBoard();
+    // The crowning line would jump on from (0,5) — but crowning ends the turn,
+    // so it counts as one hop and the two-hop line elsewhere wins.
+    place(board, 2, 7, "red");
+    place(board, 1, 6, "black");
+    place(board, 1, 4, "black");
+    place(board, 5, 4, "red");
+    place(board, 4, 3, "black");
+    place(board, 2, 1, "black");
+    const moves = legalMoves(stateFrom(board, "red", { maxCapture: true }));
+    expect(moves).toHaveLength(1);
+    expect(moves[0].from).toEqual({ row: 5, col: 4 });
+  });
+
+  it("also picks between the landing squares of a flying Dame", () => {
+    const board = emptyBoard();
+    place(board, 7, 0, "red", "king");
+    place(board, 5, 2, "black");
+    place(board, 3, 2, "black"); // only reachable when landing on (4,3)
+    const state = stateFrom(board, "red", { flyingKings: true, maxCapture: true });
+    const moves = legalMoves(state);
+    expect(moves).toHaveLength(1);
+    expect(moves[0].to).toEqual({ row: 4, col: 3 });
+    // Without the rule every landing square beyond the jumped piece is legal.
+    expect(legalMoves({ ...state, maxCapture: false })).toHaveLength(5);
+  });
+
+  it("narrows the continuation mid-chain too", () => {
+    const board = emptyBoard();
+    place(board, 5, 4, "red", "king");
+    place(board, 4, 3, "black");
+    // After landing on (3,2) two onward jumps exist, but only one chains further.
+    place(board, 2, 1, "black");
+    place(board, 2, 3, "black");
+    place(board, 2, 5, "black");
+    const state = applyMove(
+      stateFrom(board, "red", { maxCapture: true }),
+      move(5, 4, 3, 2),
+    );
+    expect(state.mustContinueFrom).toEqual({ row: 3, col: 2 });
+    const forced = legalMoves(state);
+    expect(forced).toHaveLength(1);
+    expect(forced[0].to).toEqual({ row: 1, col: 4 }); // over (2,3), then on over (2,5)
+  });
+});
+
 describe("king movement", () => {
   it("lets a king slide and capture backward", () => {
     const board = emptyBoard();
@@ -180,6 +288,158 @@ describe("king movement", () => {
     expect(moves.some((candidate) => candidate.captured !== null)).toBe(true);
     const capture = moves.find((candidate) => candidate.captured !== null)!;
     expect(capture.to).toEqual({ row: 6, col: 5 });
+  });
+
+  it("without the flying variant a king reaches exactly one square per diagonal", () => {
+    const board = emptyBoard();
+    place(board, 4, 3, "red", "king");
+    const moves = legalMoves(stateFrom(board, "red"));
+    expect(moves).toHaveLength(4);
+    expect(moves.map((candidate) => candidate.to).sort(bySquare)).toEqual(
+      [
+        { row: 3, col: 2 },
+        { row: 3, col: 4 },
+        { row: 5, col: 2 },
+        { row: 5, col: 4 },
+      ].sort(bySquare),
+    );
+  });
+
+  it("without the flying variant a king only jumps the adjacent square", () => {
+    const board = emptyBoard();
+    place(board, 7, 0, "red", "king");
+    place(board, 5, 2, "black"); // two squares away — out of reach
+    const moves = legalMoves(stateFrom(board, "red"));
+    expect(moves.every((candidate) => candidate.captured === null)).toBe(true);
+    expect(moves.map((candidate) => candidate.to)).toEqual([{ row: 6, col: 1 }]);
+  });
+});
+
+describe("flying kings — movement", () => {
+  const flying = { flyingKings: true } as const;
+
+  it("slides a king along the whole free diagonal", () => {
+    const board = emptyBoard();
+    place(board, 7, 0, "red", "king");
+    place(board, 3, 4, "red"); // own man blocks the diagonal
+    const moves = legalMoves(stateFrom(board, "red", flying)).filter(
+      (candidate) => candidate.from.row === 7,
+    );
+    expect(moves.map((candidate) => candidate.to)).toEqual([
+      { row: 6, col: 1 },
+      { row: 5, col: 2 },
+      { row: 4, col: 3 },
+    ]);
+  });
+
+  it("leaves men on a single step", () => {
+    const board = emptyBoard();
+    place(board, 7, 0, "red"); // a man, not a king
+    const moves = legalMoves(stateFrom(board, "red", flying));
+    expect(moves.map((candidate) => candidate.to)).toEqual([{ row: 6, col: 1 }]);
+  });
+
+  it("jumps a distant piece and may land on any free square beyond it", () => {
+    const board = emptyBoard();
+    place(board, 7, 0, "red", "king");
+    place(board, 5, 2, "black");
+    const moves = legalMoves(stateFrom(board, "red", flying));
+    expect(moves.every((candidate) => candidate.captured !== null)).toBe(true);
+    expect(moves.every((candidate) => sameSquareAs(candidate.captured!, 5, 2))).toBe(true);
+    expect(moves.map((candidate) => candidate.to)).toEqual([
+      { row: 4, col: 3 },
+      { row: 3, col: 4 },
+      { row: 2, col: 5 },
+      { row: 1, col: 6 },
+      { row: 0, col: 7 },
+    ]);
+  });
+
+  it("cannot jump two pieces standing back to back, nor its own", () => {
+    const backToBack = emptyBoard();
+    place(backToBack, 7, 0, "red", "king");
+    place(backToBack, 5, 2, "black");
+    place(backToBack, 4, 3, "black"); // no free square behind the first one
+    expect(
+      legalMoves(stateFrom(backToBack, "red", flying)).every(
+        (candidate) => candidate.captured === null,
+      ),
+    ).toBe(true);
+
+    const ownPiece = emptyBoard();
+    place(ownPiece, 7, 0, "red", "king");
+    place(ownPiece, 5, 2, "red");
+    place(ownPiece, 3, 4, "black"); // shielded by red's own man
+    expect(
+      legalMoves(stateFrom(ownPiece, "red", flying)).every(
+        (candidate) => candidate.captured === null,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("flying kings — multi-jump and deferred removal", () => {
+  const flying = { flyingKings: true } as const;
+
+  it("keeps a jumped piece on the board until the turn ends", () => {
+    const board = emptyBoard();
+    place(board, 5, 2, "red", "king");
+    place(board, 4, 3, "black");
+    place(board, 2, 5, "black");
+    place(board, 0, 1, "black"); // spare so the game continues
+    let state = stateFrom(board, "red", flying);
+
+    state = applyMove(state, move(5, 2, 3, 4)); // jump (4,3), land short of (2,5)
+    expect(state.currentPlayer).toBe("red");
+    expect(state.mustContinueFrom).toEqual({ row: 3, col: 4 });
+    expect(state.pendingCaptures).toEqual([{ row: 4, col: 3 }]);
+    expect(state.board[4][3]).toEqual({ player: "black", kind: "man" }); // still there
+
+    const forced = legalMoves(state);
+    expect(forced.every((candidate) => sameSquareAs(candidate.captured!, 2, 5))).toBe(true);
+
+    state = applyMove(state, move(3, 4, 1, 6)); // second jump ends the turn
+    expect(state.currentPlayer).toBe("black");
+    expect(state.pendingCaptures).toEqual([]);
+    expect(state.board[4][3]).toBeNull(); // both swept off together
+    expect(state.board[2][5]).toBeNull();
+  });
+
+  it("will not jump the same piece twice, even though its square looks empty", () => {
+    // All on the (7,0)–(0,7) diagonal: Q(6,1) black, the red king (5,2),
+    // A(4,3) black. Jumping A and landing on (3,4) leaves A in place, so the
+    // way back to Q is blocked — with immediate removal the king could chain on.
+    const board = emptyBoard();
+    place(board, 6, 1, "black");
+    place(board, 5, 2, "red", "king");
+    place(board, 4, 3, "black");
+    place(board, 0, 1, "black"); // spare so the game continues
+    const state = applyMove(stateFrom(board, "red", flying), move(5, 2, 3, 4));
+
+    expect(state.currentPlayer).toBe("black"); // turn ended, no continuation
+    expect(state.board[4][3]).toBeNull(); // A swept
+    expect(state.board[6][1]).toEqual({ player: "black", kind: "man" }); // Q survives
+  });
+
+  it("sweeps the captured piece when a crowning move cuts the chain short", () => {
+    const board = emptyBoard();
+    place(board, 2, 5, "red"); // a man — crowns on row 0
+    place(board, 1, 4, "black");
+    place(board, 1, 2, "black"); // a fresh king could jump this — must not
+    const state = applyMove(stateFrom(board, "red", flying), move(2, 5, 0, 3));
+
+    expect(state.board[0][3]).toEqual({ player: "red", kind: "king" });
+    expect(state.board[1][4]).toBeNull();
+    expect(state.pendingCaptures).toEqual([]);
+    expect(state.board[1][2]).toEqual({ player: "black", kind: "man" });
+  });
+
+  it("still lets the AI find a legal move with the variant on", () => {
+    const state = { ...createGame({ mode: "ai", difficulty: "expert", flyingKings: true }) };
+    const board = state.board;
+    board[4][3] = { player: "black", kind: "king" }; // a flying Dame in the open
+    const chosen = getAiMove(state, seededRandom(7));
+    expect(isLegalMove(state, chosen)).toBe(true);
   });
 });
 

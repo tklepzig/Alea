@@ -7,6 +7,7 @@
 import {
   SIZE,
   isPlayable,
+  otherPlayer,
   type Board,
   type Cell,
   type Difficulty,
@@ -18,20 +19,27 @@ import {
   type Square,
 } from "./game.js";
 
-/** Bump when the persisted shape changes; old blobs then deserialize to null. */
-export const SCHEMA_VERSION = 1;
+/** Bump when the persisted shape changes; old blobs then deserialize to null.
+ *  v2 added the rule variants (`flyingKings`, `maxCapture`, `pendingCaptures`). */
+export const SCHEMA_VERSION = 2;
 
 export interface Settings {
   mode: Mode;
   difficulty: Difficulty;
   /** In AI mode, does the human take the (red) first move? */
   humanFirst: boolean;
+  /** Variant: the Dame moves and captures along the whole diagonal. */
+  flyingKings: boolean;
+  /** Variant: Mehrschlagzwang — only the longest capture sequences are legal. */
+  maxCapture: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   mode: "ai",
   difficulty: "medium",
   humanFirst: true,
+  flyingKings: false,
+  maxCapture: false,
 };
 
 interface Envelope<T> {
@@ -97,7 +105,9 @@ export function isSettings(value: unknown): value is Settings {
   return (
     MODES.includes(settings.mode) &&
     DIFFICULTIES.includes(settings.difficulty) &&
-    typeof settings.humanFirst === "boolean"
+    typeof settings.humanFirst === "boolean" &&
+    typeof settings.flyingKings === "boolean" &&
+    typeof settings.maxCapture === "boolean"
   );
 }
 
@@ -110,6 +120,20 @@ function isGameState(value: unknown): value is GameState {
   if (!MODES.includes(state.mode)) return false;
   if (!DIFFICULTIES.includes(state.difficulty)) return false;
   if (!isPlayer(state.humanPlayer)) return false;
+  if (typeof state.flyingKings !== "boolean") return false;
+  if (typeof state.maxCapture !== "boolean") return false;
+  if (!Array.isArray(state.pendingCaptures)) return false;
+  if (!state.pendingCaptures.every(isSquare)) return false;
+  // Pieces jumped this turn are still on the board and belong to the opponent;
+  // outside a multi-jump nothing can be pending.
+  if (state.pendingCaptures.length > 0 && state.mustContinueFrom === null) return false;
+  if (
+    !state.pendingCaptures.every(
+      (square) => state.board[square.row][square.col]?.player === otherPlayer(state.currentPlayer),
+    )
+  ) {
+    return false;
+  }
   if (state.mustContinueFrom !== null && !isSquare(state.mustContinueFrom)) return false;
   // Mid multi-jump the continuing piece must belong to the side to move.
   if (
