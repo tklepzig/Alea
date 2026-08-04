@@ -7,49 +7,52 @@
 @import "ada-ui/scss/ada.blue";
 @import "ada-ui/scss/ada";
 
+// Ada 8 renamed the shade placeholder (%colourShades → %ladder) and its inputs
+// (--l-base/--c-base → --lightness/--chroma); the light values are now deltas
+// (--lightness-light-shift/--chroma-light-shift), not absolutes.
 body.theme-ciphra {
-  @extend %colourShades;
+  @extend %ladder;
   --hue: 132;
-  --l-base: 0.35;
-  --c-base: 0.1;
-  --l-base-light: 0.45;
-  --c-base-light: 0.15;
+  --lightness: 0.35;
+  --chroma: 0.1;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.05;
 }
 
 body.theme-dame {
-  @extend %colourShades;
+  @extend %ladder;
   --hue: 220; // cyan/azure
-  --l-base: 0.36;
-  --c-base: 0.11;
-  --l-base-light: 0.46;
-  --c-base-light: 0.14;
+  --lightness: 0.36;
+  --chroma: 0.11;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.03;
 }
 
 body.theme-muehle {
-  @extend %colourShades;
+  @extend %ladder;
   --hue: 190;
-  --l-base: 0.34;
-  --c-base: 0.08;
-  --l-base-light: 0.44;
-  --c-base-light: 0.11;
+  --lightness: 0.34;
+  --chroma: 0.08;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.03;
 }
 
 body.theme-halma {
-  @extend %colourShades;
+  @extend %ladder;
   --hue: 110; // muted olive / khaki green
-  --l-base: 0.46;
-  --c-base: 0.085;
-  --l-base-light: 0.56;
-  --c-base-light: 0.1;
+  --lightness: 0.46;
+  --chroma: 0.085;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.015;
 }
 
 body.theme-solohalma {
-  @extend %colourShades;
+  @extend %ladder;
   --hue: 265;
-  --l-base: 0.36;
-  --c-base: 0.1;
-  --l-base-light: 0.46;
-  --c-base-light: 0.13;
+  --lightness: 0.36;
+  --chroma: 0.1;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.03;
 }
 
 // ===========================================================================
@@ -64,7 +67,8 @@ body.light {
   color-scheme: light;
 
   --100: 0.27 0.05 var(--hue); // primary text — dark, hue-tinted
-  --500: 0.52 calc(var(--c-base-light) + 0.04) var(--hue); // accent
+  // Chroma of the light accent = the theme's own chroma plus its light shift.
+  --500: 0.52 calc(var(--chroma) + var(--chroma-light-shift, 0) + 0.04) var(--hue); // accent
   --600: 0.72 0.05 var(--hue);
   --700: 0.82 0.035 var(--hue); // borders
   --800: 0.9 0.025 var(--hue); // control surfaces
@@ -628,7 +632,7 @@ button.peg {
     grid-auto-flow: column;
     gap: 4px;
   }
-  .command.primary {
+  .command.cta-primary {
     background-color: oklch(0.62 0.12 240);
     color: #03121b;
     font-weight: 700;
@@ -880,7 +884,7 @@ button.peg {
 // QUADRA
 // ===========================================================================
 .view-quadra {
-  .command.primary {
+  .command.cta-primary {
     background-color: oklch(0.62 0.12 240);
     color: #03121b;
     font-weight: 700;
@@ -1101,7 +1105,7 @@ button.peg {
 // CIPHRA
 // ===========================================================================
 .view-ciphra {
-  .command.primary {
+  .command.cta-primary {
     background-color: oklch(0.62 0.12 185);
     color: #03181b;
     font-weight: 700;
