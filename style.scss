@@ -209,17 +209,21 @@ body.light {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
+// Square variant of Ada's .command: surface, min size and touch scaling come
+// from the component (--command-min-size grows on touch devices), so only the
+// square shape and the glyph size live here.
 .iconbtn {
-  width: 2.75rem;
-  height: 2.75rem;
-  background-color: var(--color800);
-  box-shadow: var(--box-shadow);
-  border-radius: var(--border-radius);
-  display: grid;
-  place-items: center;
-  color: var(--color100);
+  width: var(--command-min-size);
+  padding: 0;
   font-size: var(--text-lg);
-  cursor: pointer;
+
+  // Icon-sprite glyphs (back arrow): sized off the button's font-size and
+  // stroked in currentColor, so they track the label colour and the touch scale.
+  .ico {
+    width: 1.15em;
+    height: 1.15em;
+    display: block;
+  }
 
   &.ghost {
     visibility: hidden;
@@ -296,11 +300,16 @@ body.light {
   padding-inline: 0.5rem;
   text-align: center;
 }
+// Segments are .command buttons for the touch-scaled min size; the seam-free
+// look needs its own surface (no per-segment radius or shadow inside the
+// clipped container, dividers via border-left below).
 .seg {
   padding: 0.55rem 1rem;
   background: oklch(var(--800));
   color: oklch(var(--100) / 0.6);
   border: none;
+  border-radius: 0;
+  box-shadow: none;
   font-weight: 600;
   font-size: var(--text-sm);
   cursor: pointer;
@@ -850,17 +859,12 @@ button.peg {
     opacity: 1;
   }
 }
+// Ada's .thin command — a smaller min size than a full control, still touch-scaled.
 .offline-refresh {
-  width: 1.75rem;
-  height: 1.75rem;
-  display: grid;
-  place-items: center;
-  background: oklch(var(--800));
+  width: var(--command-min-size-thin);
+  padding: 0;
   color: oklch(var(--100) / 0.7);
-  border: none;
-  border-radius: var(--border-radius);
   font-size: var(--text-sm);
-  cursor: pointer;
 
   &:hover {
     color: var(--color100);

@@ -30,20 +30,46 @@
         }
       } catch {}
     </script>
+    <!-- Icon sprite: referenced by <use> from every back button. Inline (not an
+         asset) so it needs no font coverage and no extra precached file. -->
+    <svg style="display: none" xmlns="http://www.w3.org/2000/svg">
+      <symbol id="ico-back" viewBox="0 0 24 24">
+        <path
+          d="M10 5 3.5 12 10 19M3.5 12h17"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </symbol>
+      <symbol id="ico-restart" viewBox="0 0 24 24">
+        <g
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M20 12a8 8 0 1 1-4-6.93" />
+          <path d="M17.73 6.07 14.9 6.97 17.1 3.17Z" fill="currentColor" />
+        </g>
+      </symbol>
+    </svg>
     <main class="app">
       <!-- ############################################################### -->
       <!-- HUB — startpage with one card per game                          -->
       <!-- ############################################################### -->
       <section class="view view-hub" id="view-hub">
         <div class="appbar">
-          <span class="iconbtn ghost" aria-hidden="true"></span>
+          <span class="command iconbtn ghost" aria-hidden="true"></span>
           <div class="wordmark">
             <span class="logo">
               <span class="alea-die"><i></i><i></i><i></i><i></i><i></i></span>
             </span>
             <span class="name">ALEA</span>
           </div>
-          <button class="iconbtn" id="theme-toggle" type="button" aria-label="Light Theme">☀</button>
+          <button class="command iconbtn" id="theme-toggle" type="button" aria-label="Light Theme">☀</button>
         </div>
 
         <section class="panel">
@@ -105,7 +131,7 @@
           <footer>
             <span class="offline-status" id="offline-status" hidden></span>
             <button
-              class="offline-refresh"
+              class="command thin offline-refresh"
               id="offline-refresh"
               type="button"
               aria-label="Re-check offline cache"
@@ -122,14 +148,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="q-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="q-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="q-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <i class="d red"></i><i class="d yellow"></i><i class="d yellow"></i><i class="d red"></i>
               </span>
               <span class="name">QUADRA</span>
             </div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -154,9 +180,9 @@
         <!-- =========================== SETUP ============================ -->
         <section class="screen" id="q-screen-setup" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="q-setup-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="q-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title">Gegen KI</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -165,10 +191,10 @@
               <div class="set-row stack">
                 <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
                 <div class="segmented quad" id="q-seg-difficulty" role="group" aria-label="Schwierigkeit">
-                  <button class="seg" type="button" data-value="easy">Leicht</button>
-                  <button class="seg" type="button" data-value="medium">Mittel</button>
-                  <button class="seg" type="button" data-value="hard">Schwer</button>
-                  <button class="seg" type="button" data-value="expert">Experte</button>
+                  <button class="command seg" type="button" data-value="easy">Leicht</button>
+                  <button class="command seg" type="button" data-value="medium">Mittel</button>
+                  <button class="command seg" type="button" data-value="hard">Schwer</button>
+                  <button class="command seg" type="button" data-value="expert">Experte</button>
                 </div>
               </div>
             </article>
@@ -181,8 +207,8 @@
               <div class="set-row">
                 <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
                 <div class="segmented" id="q-seg-first" role="group" aria-label="Wer beginnt">
-                  <button class="seg" type="button" data-value="human">Du</button>
-                  <button class="seg" type="button" data-value="ai">KI</button>
+                  <button class="command seg" type="button" data-value="human">Du</button>
+                  <button class="command seg" type="button" data-value="ai">KI</button>
                 </div>
               </div>
             </article>
@@ -197,9 +223,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="q-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="q-game-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="q-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title turn" id="q-game-title">Rot ist dran</div>
-            <button class="iconbtn" id="q-game-restart" type="button" aria-label="Neu starten">↻</button>
+            <button class="command iconbtn" id="q-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
           </div>
 
           <div class="board-wrap">
@@ -216,9 +242,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="q-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="q-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="q-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="q-end-bar">Ergebnis</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <div class="end-hero">
@@ -266,14 +292,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="c-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="c-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="c-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c6"></i>
               </span>
               <span class="name">CIPHRA</span>
             </div>
-            <button class="iconbtn" id="c-home-settings" type="button" aria-label="Einstellungen">⚙</button>
+            <button class="command iconbtn" id="c-home-settings" type="button" aria-label="Einstellungen">⚙</button>
           </div>
 
           <section class="panel">
@@ -297,9 +323,9 @@
         <!-- ========================== SETTINGS ========================== -->
         <section class="screen" id="c-screen-settings" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="c-settings-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="c-settings-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title">Einstellungen</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -353,9 +379,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="c-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="c-game-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="c-game-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="c-game-title">Noch 10 Versuche</div>
-            <button class="iconbtn" id="c-game-settings" type="button" aria-label="Einstellungen">⚙</button>
+            <button class="command iconbtn" id="c-game-settings" type="button" aria-label="Einstellungen">⚙</button>
           </div>
 
           <div class="board" id="c-board"></div>
@@ -377,9 +403,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="c-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="c-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="c-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="c-end-bar">Ergebnis</div>
-            <button class="iconbtn" id="c-end-settings" type="button" aria-label="Einstellungen">⚙</button>
+            <button class="command iconbtn" id="c-end-settings" type="button" aria-label="Einstellungen">⚙</button>
           </div>
 
           <div class="end-hero">
@@ -429,14 +455,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="d-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="d-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="d-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <span class="emblem dame"><i class="back"></i><i class="front"></i></span>
               </span>
               <span class="name">DAME</span>
             </div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -461,9 +487,9 @@
         <!-- =========================== SETUP ============================ -->
         <section class="screen" id="d-screen-setup" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="d-setup-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="d-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="d-setup-title">Gegen KI</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel" id="d-panel-difficulty">
@@ -472,10 +498,10 @@
               <div class="set-row stack">
                 <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
                 <div class="segmented quad" id="d-seg-difficulty" role="group" aria-label="Schwierigkeit">
-                  <button class="seg" type="button" data-value="easy">Leicht</button>
-                  <button class="seg" type="button" data-value="medium">Mittel</button>
-                  <button class="seg" type="button" data-value="hard">Schwer</button>
-                  <button class="seg" type="button" data-value="expert">Experte</button>
+                  <button class="command seg" type="button" data-value="easy">Leicht</button>
+                  <button class="command seg" type="button" data-value="medium">Mittel</button>
+                  <button class="command seg" type="button" data-value="hard">Schwer</button>
+                  <button class="command seg" type="button" data-value="expert">Experte</button>
                 </div>
               </div>
             </article>
@@ -488,8 +514,8 @@
               <div class="set-row">
                 <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
                 <div class="segmented" id="d-seg-first" role="group" aria-label="Wer beginnt">
-                  <button class="seg" type="button" data-value="human">Du</button>
-                  <button class="seg" type="button" data-value="ai">KI</button>
+                  <button class="command seg" type="button" data-value="human">Du</button>
+                  <button class="command seg" type="button" data-value="ai">KI</button>
                 </div>
               </div>
             </article>
@@ -502,15 +528,15 @@
               <div class="set-row stack">
                 <div><div class="lab">Fliegende Dame</div><div class="desc">Die Dame zieht und schlägt über die ganze Diagonale — statt nur ein Feld weit.</div></div>
                 <div class="segmented" id="d-seg-flying" role="group" aria-label="Fliegende Dame">
-                  <button class="seg" type="button" data-value="off">Aus</button>
-                  <button class="seg" type="button" data-value="on">Ein</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                  <button class="command seg" type="button" data-value="on">Ein</button>
                 </div>
               </div>
               <div class="set-row stack">
                 <div><div class="lab">Mehrschlagzwang</div><div class="desc">Bei mehreren Schlagfolgen musst du die nehmen, die am meisten Steine schlägt.</div></div>
                 <div class="segmented" id="d-seg-maxcapture" role="group" aria-label="Mehrschlagzwang">
-                  <button class="seg" type="button" data-value="off">Aus</button>
-                  <button class="seg" type="button" data-value="on">Ein</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                  <button class="command seg" type="button" data-value="on">Ein</button>
                 </div>
               </div>
             </article>
@@ -525,9 +551,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="d-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="d-game-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="d-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title turn" id="d-game-title">Rot ist dran</div>
-            <button class="iconbtn" id="d-game-restart" type="button" aria-label="Neu starten">↻</button>
+            <button class="command iconbtn" id="d-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
           </div>
 
           <div class="board-wrap">
@@ -544,9 +570,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="d-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="d-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="d-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="d-end-bar">Ergebnis</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <div class="end-hero">
@@ -596,14 +622,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="m-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="m-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="m-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <span class="emblem muehle"><i class="inner"></i><i class="dot"></i></span>
               </span>
               <span class="name">MÜHLE</span>
             </div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -628,9 +654,9 @@
         <!-- =========================== SETUP ============================ -->
         <section class="screen" id="m-screen-setup" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="m-setup-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="m-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title">Gegen KI</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -639,10 +665,10 @@
               <div class="set-row stack">
                 <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
                 <div class="segmented quad" id="m-seg-difficulty" role="group" aria-label="Schwierigkeit">
-                  <button class="seg" type="button" data-value="easy">Leicht</button>
-                  <button class="seg" type="button" data-value="medium">Mittel</button>
-                  <button class="seg" type="button" data-value="hard">Schwer</button>
-                  <button class="seg" type="button" data-value="expert">Experte</button>
+                  <button class="command seg" type="button" data-value="easy">Leicht</button>
+                  <button class="command seg" type="button" data-value="medium">Mittel</button>
+                  <button class="command seg" type="button" data-value="hard">Schwer</button>
+                  <button class="command seg" type="button" data-value="expert">Experte</button>
                 </div>
               </div>
             </article>
@@ -655,8 +681,8 @@
               <div class="set-row">
                 <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
                 <div class="segmented" id="m-seg-first" role="group" aria-label="Wer beginnt">
-                  <button class="seg" type="button" data-value="human">Du</button>
-                  <button class="seg" type="button" data-value="ai">KI</button>
+                  <button class="command seg" type="button" data-value="human">Du</button>
+                  <button class="command seg" type="button" data-value="ai">KI</button>
                 </div>
               </div>
             </article>
@@ -671,9 +697,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="m-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="m-game-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="m-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title turn" id="m-game-title">Rot setzt (noch 9)</div>
-            <button class="iconbtn" id="m-game-restart" type="button" aria-label="Neu starten">↻</button>
+            <button class="command iconbtn" id="m-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
           </div>
 
           <div class="board-wrap">
@@ -690,9 +716,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="m-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="m-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="m-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="m-end-bar">Ergebnis</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <div class="end-hero">
@@ -740,14 +766,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="h-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="h-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="h-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <span class="emblem halma"><i class="a"></i><i class="b"></i><i class="c"></i></span>
               </span>
               <span class="name">HALMA</span>
             </div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -772,9 +798,9 @@
         <!-- =========================== SETUP ============================ -->
         <section class="screen" id="h-screen-setup" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="h-setup-back" type="button" aria-label="Zurück">←</button>
+            <button class="command iconbtn" id="h-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title">Gegen KI</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -783,10 +809,10 @@
               <div class="set-row stack">
                 <div><div class="lab">Stärke der KI</div><div class="desc">Wie stark spielt der Computer?</div></div>
                 <div class="segmented quad" id="h-seg-difficulty" role="group" aria-label="Schwierigkeit">
-                  <button class="seg" type="button" data-value="easy">Leicht</button>
-                  <button class="seg" type="button" data-value="medium">Mittel</button>
-                  <button class="seg" type="button" data-value="hard">Schwer</button>
-                  <button class="seg" type="button" data-value="expert">Experte</button>
+                  <button class="command seg" type="button" data-value="easy">Leicht</button>
+                  <button class="command seg" type="button" data-value="medium">Mittel</button>
+                  <button class="command seg" type="button" data-value="hard">Schwer</button>
+                  <button class="command seg" type="button" data-value="expert">Experte</button>
                 </div>
               </div>
             </article>
@@ -799,8 +825,8 @@
               <div class="set-row">
                 <div><div class="lab">Wer beginnt?</div><div class="desc">Der erste Zug spielt Rot.</div></div>
                 <div class="segmented" id="h-seg-first" role="group" aria-label="Wer beginnt">
-                  <button class="seg" type="button" data-value="human">Du</button>
-                  <button class="seg" type="button" data-value="ai">KI</button>
+                  <button class="command seg" type="button" data-value="human">Du</button>
+                  <button class="command seg" type="button" data-value="ai">KI</button>
                 </div>
               </div>
             </article>
@@ -815,9 +841,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="h-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="h-game-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="h-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title turn" id="h-game-title">Rot ist dran</div>
-            <button class="iconbtn" id="h-game-restart" type="button" aria-label="Neu starten">↻</button>
+            <button class="command iconbtn" id="h-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
           </div>
 
           <div class="board-wrap">
@@ -834,9 +860,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="h-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="h-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="h-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="h-end-bar">Ergebnis</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <div class="end-hero">
@@ -884,14 +910,14 @@
         <!-- ============================ HOME ============================ -->
         <section class="screen" id="s-screen-home">
           <div class="appbar">
-            <button class="iconbtn" id="s-home-hub" type="button" aria-label="Zur Spieleauswahl">←</button>
+            <button class="command iconbtn" id="s-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="wordmark">
               <span class="logo">
                 <span class="emblem solo"><i class="up"></i><i class="down"></i><i class="left"></i><i class="right"></i><i class="mid"></i></span>
               </span>
               <span class="name">SOLO-HALMA</span>
             </div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <section class="panel">
@@ -915,9 +941,9 @@
         <!-- ============================ GAME ============================ -->
         <section class="screen" id="s-screen-game" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="s-game-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="s-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="s-game-title">Noch 32 Steine</div>
-            <button class="iconbtn" id="s-game-restart" type="button" aria-label="Neu starten">↻</button>
+            <button class="command iconbtn" id="s-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
           </div>
 
           <div class="board-wrap">
@@ -934,9 +960,9 @@
         <!-- ============================ END ============================= -->
         <section class="screen" id="s-screen-end" hidden>
           <div class="appbar">
-            <button class="iconbtn" id="s-end-back" type="button" aria-label="Startseite">←</button>
+            <button class="command iconbtn" id="s-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
             <div class="title" id="s-end-bar">Ergebnis</div>
-            <span class="iconbtn ghost" aria-hidden="true"></span>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
           <div class="end-hero">
