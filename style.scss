@@ -123,6 +123,13 @@ body.light {
     --coord-ink: oklch(0.32 0.07 var(--hue));
   }
 
+  // Nothing a piece stands on is dark in this theme — the pale square is 0.78
+  // relative luminance, the wood one 0.40 — so a Black piece needs no rim to be
+  // separated, and dropping it keeps the two sides as far apart as they can be.
+  .schach-piece.black {
+    filter: none;
+  }
+
   // Ivory pieces read as "white" on a dark board; on a light one the same
   // colour would vanish, so the *text* stand-ins for White go warm and dark.
   .view-schach .title.turn.white,
@@ -562,6 +569,7 @@ body.light {
   aspect-ratio: 1;
   color: #f2ece0;
   --piece-edge: #2b2419;
+  --piece-rim: transparent;
 }
 .schach-piece svg {
   display: block;
@@ -571,22 +579,40 @@ body.light {
   width: 100%;
   height: 100%;
   fill: currentColor;
-  // The outline, not the fill, is what separates a piece from its square: in
-  // each theme one side's fill sits within ~1% lightness of one square shade
-  // (measured 1.0:1), exactly as a real chess set does. So the stroke has to
-  // carry it — at 0.9 of a 24-unit viewBox that stays ~1.3px on a phone.
+  // The stroke defines the shape, not the side: both colours get a dark edge (at
+  // 0.9 of a 24-unit viewBox, ~1.3px on a phone) so an ivory piece keeps its
+  // contour on a pale square. Separating the two SIDES is the fill's job, and
+  // separating a Black piece from a dark square is the rim's — an edge that
+  // differs per side, which is what this replaced, tried to do all three at once
+  // and did none of them.
   stroke: var(--piece-edge);
   stroke-width: 0.9;
   stroke-linejoin: round;
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
 }
+// Both sides carry a DARK edge, as a real set does — the two colours are told
+// apart by their fill and nothing else. The edges used to be inverted (dark on
+// White, ivory on Black), and since the stroke also traces every interior line
+// of a 24-unit shape, a Black piece read as a light line drawing: measured on a
+// phone-sized board the two sides' mean rendered lightness sat 1.27:1 apart in
+// the dark theme and 1.01:1 in the light one, i.e. indistinguishable.
 .schach-piece.white {
-  color: #f2ece0;
-  --piece-edge: #2b2419;
+  color: #f4eee2;
+  --piece-edge: #241d14;
 }
 .schach-piece.black {
-  color: #302b26;
-  --piece-edge: #ded3c0;
+  color: #191512;
+  --piece-edge: #0b0908;
+  // What kept the old ivory edge honest was contrast against the near-black
+  // dark squares. A rim does that job without lightening the piece: it is a
+  // glow at the silhouette only, so the interior stays black and the side stays
+  // unmistakably Black. It sits on the wrapper, not the <svg>, because the
+  // move-hint and check filters replace the svg's own filter and a Black piece
+  // has to keep its rim while it glows.
+  --piece-rim: rgba(226, 214, 190, 0.9);
+  filter:
+    drop-shadow(0 0 1px var(--piece-rim))
+    drop-shadow(0 0 1px var(--piece-rim));
 }
 .schach-piece.s {
   width: 22px;
@@ -1757,6 +1783,9 @@ button.peg {
     color: rgba(226, 60, 67, 0.95);
     --piece-edge: rgba(255, 216, 216, 0.95);
     pointer-events: none;
+    // The ghost is already red-on-light-edge; a Black piece's silhouette rim
+    // would only muddy it (and its own glow lives on the svg below).
+    filter: none;
     animation: schach-capture var(--ghost-ms, 1s) ease-out forwards;
   }
   .schach-piece.captured-ghost svg {
