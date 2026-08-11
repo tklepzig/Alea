@@ -28,7 +28,11 @@
     "games/solohalma/game.ts",
     "games/solohalma/game.test.ts",
     "games/solohalma/storage.ts",
-    "games/solohalma/storage.test.ts"
+    "games/solohalma/storage.test.ts",
+    "games/schach/game.ts",
+    "games/schach/game.test.ts",
+    "games/schach/storage.ts",
+    "games/schach/storage.test.ts"
   ],
   "exclude": []
 }

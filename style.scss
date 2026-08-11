@@ -55,6 +55,15 @@ body.theme-solohalma {
   --chroma-light-shift: 0.03;
 }
 
+body.theme-schach {
+  @extend %ladder;
+  --hue: 55; // warm wood / bronze
+  --lightness: 0.4;
+  --chroma: 0.075;
+  --lightness-light-shift: 0.1;
+  --chroma-light-shift: 0.02;
+}
+
 // ===========================================================================
 // Light theme — app-wide, toggled from the hub (persisted as alea.theme).
 // Inverts the shade ramp in place: same hue per game theme, flipped lightness,
@@ -105,6 +114,20 @@ body.light {
   .title.turn.blue,
   .end-glyph.blue {
     color: #2b6fd4;
+  }
+  // The board keeps its wood contrast in the light theme — the shade ramp would
+  // put both square colours within a few percent of white.
+  .view-schach {
+    --sq-dark: oklch(0.74 0.055 var(--hue));
+    --sq-light: oklch(0.92 0.025 var(--hue));
+    --coord-ink: oklch(0.32 0.07 var(--hue));
+  }
+
+  // Ivory pieces read as "white" on a dark board; on a light one the same
+  // colour would vanish, so the *text* stand-ins for White go warm and dark.
+  .view-schach .title.turn.white,
+  .view-schach .end-glyph.white {
+    color: #8a6521;
   }
   .view-ciphra .end-title.win {
     color: oklch(0.55 0.15 150);
@@ -527,6 +550,53 @@ body.light {
   height: 44px;
 }
 
+// Schach: the six drawn piece shapes from the inline sprite, dressed in ivory
+// or charcoal. Both `fill` and `stroke` are inherited into the <use> shadow
+// tree, so one pair of colours per side is all it takes. On the board a piece
+// fills its square (see .view-schach); .s and .l are the legend and hero sizes.
+.schach-piece {
+  display: inline-grid;
+  place-items: center;
+  // Square by geometry, not by content: without this the svg's own height is
+  // what a percentage height would resolve against, which is circular.
+  aspect-ratio: 1;
+  color: #f2ece0;
+  --piece-edge: #2b2419;
+}
+.schach-piece svg {
+  display: block;
+  // An <svg> without intrinsic sizing defaults to 300×150 — inside a grid cell
+  // that default is what min-content resolves to and it blows the track up, so
+  // the size is pinned here (and the board tracks use minmax(0, 1fr)).
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+  // The outline, not the fill, is what separates a piece from its square: in
+  // each theme one side's fill sits within ~1% lightness of one square shade
+  // (measured 1.0:1), exactly as a real chess set does. So the stroke has to
+  // carry it — at 0.9 of a 24-unit viewBox that stays ~1.3px on a phone.
+  stroke: var(--piece-edge);
+  stroke-width: 0.9;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+}
+.schach-piece.white {
+  color: #f2ece0;
+  --piece-edge: #2b2419;
+}
+.schach-piece.black {
+  color: #302b26;
+  --piece-edge: #ded3c0;
+}
+.schach-piece.s {
+  width: 22px;
+  height: 22px;
+}
+.schach-piece.l {
+  width: 40px;
+  height: 40px;
+}
+
 // Solo-Halma: an indigo peg; the `.hole` variant is an empty socket (used in the
 // hero, legend and wordmark). On the board a peg fills its hole (see
 // .view-solohalma).
@@ -787,6 +857,20 @@ button.peg {
   top: 35%;
   background: transparent;
   box-shadow: inset 0 0 0 2px #6c6cf0;
+}
+
+// Schach — the knight from the piece sprite, in the board's ivory.
+.emblem.schach {
+  display: inline-grid;
+  place-items: center;
+}
+.emblem.schach svg {
+  width: 100%;
+  height: 100%;
+  fill: #efe6d4;
+  stroke: #2b2419;
+  stroke-width: 0.8;
+  stroke-linejoin: round;
 }
 
 // Alea (the app) — a die: five pips in the four game colours plus a blue centre.
@@ -1088,6 +1172,24 @@ button.peg {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+// Schach's captured piece is taken *on* the destination square, so its ghost
+// stands under the arriving piece: hold it while the attacker crosses the board
+// (that's the window where it's unobstructed and readable), then swell and fade
+// it as the attacker lands, rather than leaving it half-covered afterwards.
+@keyframes schach-capture {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0.95;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
   }
 }
 @keyframes capture-flash {
@@ -1482,6 +1584,209 @@ button.peg {
   }
   .end-glyph.black {
     color: oklch(var(--100) / 0.7);
+  }
+  .final-board {
+    margin-inline: auto;
+    max-width: 22rem;
+  }
+}
+
+// ===========================================================================
+// SCHACH — chess. An 8×8 board of alternating squares with the drawn piece
+// shapes on top; select-then-move, with the legal targets marked. Warm bronze
+// theme (body.theme-schach).
+// ===========================================================================
+.view-schach {
+  // The two square colours are tokens: the shade ramp alone flips to
+  // near-white-on-near-white in the light theme, and a chessboard lives or dies
+  // on square contrast (see the body.light override).
+  --sq-dark: oklch(var(--950));
+  --sq-light: oklch(var(--700) / 0.42);
+  // One coordinate ink for both square shades. Tinting each label in the other
+  // square's colour looked tidy but measured 1.4:1 on the light squares — the
+  // two shades are too close together to double as text colours.
+  --coord-ink: oklch(0.88 0.05 var(--hue));
+
+  .title.turn.white {
+    color: #e8dcc0;
+  }
+  .title.turn.black {
+    color: oklch(var(--100) / 0.85);
+  }
+
+  // The hint line carries the last move in words, which wraps to two lines on a
+  // narrow screen — reserve the height so the board doesn't jump when it does.
+  .annot {
+    min-height: 2.8em;
+  }
+
+  .hero-pieces {
+    display: grid;
+    grid-auto-flow: column;
+    gap: var(--spacing);
+    justify-content: center;
+  }
+
+  // Game screen: appbar on top, board fills the middle and is centred, hint below.
+  #x-screen-game {
+    min-height: calc(100dvh - 2 * var(--padding));
+    grid-template-rows: auto 1fr auto auto;
+    gap: var(--spacing);
+  }
+  .board-wrap {
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+
+  .schach-board {
+    display: grid;
+    // Both axes are explicit: an auto row track would be sized by the pieces'
+    // intrinsic SVG height instead of the board's own square geometry.
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    grid-template-rows: repeat(8, minmax(0, 1fr));
+    width: 100%;
+    max-width: 30rem;
+    aspect-ratio: 1;
+    padding: clamp(5px, 1.6%, 12px);
+    background: oklch(var(--950));
+    border: 2px solid oklch(var(--700));
+    border-radius: clamp(8px, 2.4%, 16px);
+    box-shadow:
+      inset 0 2px 0 rgba(255, 255, 255, 0.06),
+      var(--box-shadow);
+    overflow: hidden;
+  }
+  .sq {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: none;
+    min-width: 0;
+    min-height: 0;
+    position: relative; // anchors the coordinate labels in the corners
+  }
+
+  // Coordinates for beginners: file letters along the bottom row, rank digits
+  // down the left column, tucked into opposite corners so the one shared
+  // square carries both.
+  .coord {
+    position: absolute;
+    pointer-events: none;
+    color: var(--coord-ink);
+    font-size: clamp(9px, 2.7vw, 14px);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .coord.file {
+    right: 0.22em;
+    bottom: 0.22em;
+  }
+  .coord.rank {
+    left: 0.22em;
+    top: 0.22em;
+  }
+  .sq.light {
+    background: var(--sq-light);
+  }
+  .sq.dark {
+    background: var(--sq-dark);
+  }
+  button.sq {
+    cursor: pointer;
+  }
+  button.sq:disabled {
+    cursor: default;
+  }
+  // A capture puts two pieces in one cell for the length of the slide (the
+  // victim's ghost under the arriving piece), so every child shares the single
+  // grid area instead of stacking into rows.
+  .sq > *,
+  .sq::after {
+    grid-area: 1 / 1;
+  }
+  .sq .schach-piece {
+    width: 80%;
+  }
+
+  // Move hints: pieces that can move glow, the picked-up square is lit, an
+  // empty destination shows a dot and a capturable one is ringed.
+  .schach-board:not(.locked) .sq.movable .schach-piece svg {
+    filter:
+      drop-shadow(0 0 3px oklch(var(--500)))
+      drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45));
+  }
+  .sq.selected {
+    background: oklch(var(--500) / 0.4);
+  }
+  .sq.target::after {
+    content: "";
+    width: 30%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: oklch(var(--500) / 0.85);
+    box-shadow: 0 0 0 3px oklch(var(--500) / 0.25);
+  }
+  .sq.capture-target {
+    box-shadow: inset 0 0 0 3px oklch(var(--500) / 0.85);
+  }
+  .sq:focus-visible {
+    outline: var(--border-width) solid var(--ring-strong);
+    outline-offset: -3px;
+  }
+
+  // Last-move trail — origin and destination stay lit until the next move, so
+  // the AI's move is obvious after the fact.
+  .sq.last-from {
+    box-shadow: inset 0 0 0 3px oklch(var(--500) / 0.45);
+  }
+  .sq.last-to {
+    box-shadow: inset 0 0 0 3px oklch(var(--500) / 0.9);
+  }
+  // A king in check — the one piece of state a player must not miss.
+  .schach-piece.checked svg {
+    filter: drop-shadow(0 0 5px rgba(255, 70, 70, 0.95));
+  }
+  // A fading ghost of the piece just captured, left on its square while the
+  // capturing piece glides in over it — in chess that's the same square, so the
+  // ghost is the only moment you see *which* piece went.
+  // Tinted red rather than kept in its own colour: a black piece's ghost on a
+  // dark square is invisible exactly when it matters, and the shape still says
+  // which piece it was.
+  .schach-piece.captured-ghost {
+    color: rgba(226, 60, 67, 0.95);
+    --piece-edge: rgba(255, 216, 216, 0.95);
+    pointer-events: none;
+    animation: schach-capture var(--ghost-ms, 1s) ease-out forwards;
+  }
+  .schach-piece.captured-ghost svg {
+    filter: drop-shadow(0 0 5px rgba(255, 90, 90, 0.85));
+  }
+
+  // Promotion picker — four labelled pieces, dressed in the mover's colour.
+  .promo-choices {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing);
+  }
+  .promo-choice {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    justify-items: start;
+    gap: var(--spacing);
+    min-height: 3.4rem;
+  }
+
+  .end-glyph.white {
+    color: #e8dcc0;
+  }
+  .end-glyph.black {
+    color: oklch(var(--100) / 0.7);
+  }
+  .end-glyph.draw,
+  .end-title.draw {
+    color: oklch(var(--500));
   }
   .final-board {
     margin-inline: auto;
@@ -1932,6 +2237,9 @@ button.peg {
   }
   .view-solohalma .board-wrap .solo-board {
     max-width: min(42rem, calc(100dvh - var(--board-chrome)));
+  }
+  .view-schach .board-wrap .schach-board {
+    max-width: min(50rem, calc(100dvh - var(--board-chrome)));
   }
 
   // Ciphra has no square board — its field grows by scaling the pegs instead.

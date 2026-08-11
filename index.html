@@ -55,6 +55,35 @@
           <path d="M17.73 6.07 14.9 6.97 17.1 3.17Z" fill="currentColor" />
         </g>
       </symbol>
+      <!-- Schach's six piece shapes. Drawn (not the Unicode chess glyphs)
+           because the app self-hosts only the Open Sans latin subset — a symbol
+           block it doesn't carry would render as tofu on an offline device.
+           No fill/stroke here: both are inherited from the <svg>, so one pair
+           of CSS colours dresses white and black. -->
+      <symbol id="pc-pawn" viewBox="0 0 24 24">
+        <circle cx="12" cy="6.5" r="3" />
+        <path d="M8.7 10.5h6.6l-.7 1.7H9.4zM9.4 12.6h5.2c.5 2.3 1.4 4.1 2.5 5.3H6.9c1.1-1.2 2-3 2.5-5.3zM5.6 17.9h12.8v1.7H5.6zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
+      <symbol id="pc-rook" viewBox="0 0 24 24">
+        <path d="M6 3.6h2.6v1.9h2.1V3.6h2.6v1.9h2.1V3.6H18v4.9l-1.7 1.6v5.4l1.9 1.8H5.8l1.9-1.8v-5.4L6 8.5zM5.6 17.9h12.8v1.7H5.6zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
+      <symbol id="pc-knight" viewBox="0 0 24 24" fill-rule="evenodd">
+        <path d="M8.4 17.9c-.3-2.7.4-4.7 2-6.3l1.5-1.6-2.3 1.1c-.6.3-1.2.5-1.8.5-.8 0-1.4-.8-1.1-1.5l1.2-2.8c1-1.9 2.6-3.3 4.5-4l-.4-2.2 1.9 1.2 1.2-.5-.3 1.5c2.5.8 3.9 2.8 4.1 5.4.2 2.9-.2 5.7-.6 9.2zm5.9-9.5a.85.85 0 1 0 .01 0zM5.6 17.9h12.8v1.7H5.6zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
+      <symbol id="pc-bishop" viewBox="0 0 24 24" fill-rule="evenodd">
+        <path d="M12 2.6a1.7 1.7 0 0 1 1 3.1c2.3 1.7 3.7 3.9 3.7 6 0 1.8-.9 3.3-2.3 4.2H9.6c-1.4-.9-2.3-2.4-2.3-4.2 0-2.1 1.4-4.3 3.7-6a1.7 1.7 0 0 1 1-3.1zm2.5 4.2-4.6 4.6-1.1-1.1 4.6-4.6zM6.4 16.2h11.2l.8 1.7H5.6zM5.6 17.9h12.8v1.7H5.6zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
+      <symbol id="pc-queen" viewBox="0 0 24 24">
+        <circle cx="4.6" cy="6.6" r="1.3" />
+        <circle cx="8.3" cy="5.4" r="1.3" />
+        <circle cx="12" cy="4" r="1.4" />
+        <circle cx="15.7" cy="5.4" r="1.3" />
+        <circle cx="19.4" cy="6.6" r="1.3" />
+        <path d="M4.6 7.9 6.4 11.4 8.3 6.7l1.9 4.7L12 5.3l1.8 6.1 1.9-4.7 1.9 4.7 1.8-3.5-1.8 6.8H6.4zM6.4 15.4h11.2l1 2.5H5.4zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
+      <symbol id="pc-king" viewBox="0 0 24 24">
+        <path d="M11 1.3h2v2.4h2.4v2h-2.4v2.4h-2V5.7H8.6v-2H11zM12 8.1c3.4 0 5.9 2.1 5.9 4.7 0 1.9-1.1 3.5-2.8 4.4l.5 1H8.4l.5-1c-1.7-.9-2.8-2.5-2.8-4.4C6.1 10.2 8.6 8.1 12 8.1zM5.6 17.9h12.8v1.7H5.6zM4.4 19.6h15.2v1.9H4.4z" />
+      </symbol>
     </svg>
     <main class="app">
       <!-- ############################################################### -->
@@ -102,6 +131,14 @@
                 <span class="card-desc">Schlagen, was geht — gegen die KI oder zu zweit.</span>
               </span>
               <span class="card-chip" id="chip-dame" hidden>Spiel läuft</span>
+            </button>
+            <button class="game-card" id="card-schach" type="button">
+              <span class="emblem schach"><svg class="ico" aria-hidden="true"><use href="#pc-knight" /></svg></span>
+              <span class="card-body">
+                <span class="card-name">Schach</span>
+                <span class="card-desc">Das königliche Spiel — gegen die KI oder zu zweit.</span>
+              </span>
+              <span class="card-chip" id="chip-schach" hidden>Spiel läuft</span>
             </button>
             <button class="game-card" id="card-muehle" type="button">
               <span class="emblem muehle"><i class="inner"></i><i class="dot"></i></span>
@@ -609,6 +646,177 @@
               <p class="note">Vor dem Spiel wählbar: mit <b>Mehrschlagzwang</b> musst du unter mehreren Schlagfolgen die längste wählen — ohne ihn ist jeder Schlag erlaubt.</p>
               <p class="note">Ebenfalls wählbar: mit <b>fliegender Dame</b> zieht die Dame beliebig weit über eine freie Diagonale und schlägt einen Gegner in beliebiger Entfernung — dahinter darf sie auf jedem freien Feld landen. Geschlagene Steine bleiben bis zum Ende des Zuges liegen: sie versperren die Diagonale und können nicht zweimal geschlagen werden.</p>
               <button class="command cta-primary" id="d-howto-close" type="button">Verstanden</button>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+      </section>
+
+      <!-- ############################################################### -->
+      <!-- SCHACH — chess (ids prefixed x-)                                -->
+      <!-- ############################################################### -->
+      <section class="view view-schach" id="view-schach" hidden>
+        <!-- ============================ HOME ============================ -->
+        <section class="screen" id="x-screen-home">
+          <div class="appbar">
+            <button class="command iconbtn" id="x-home-hub" type="button" aria-label="Zur Spieleauswahl"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
+            <div class="wordmark">
+              <span class="logo">
+                <span class="emblem schach"><svg class="ico" aria-hidden="true"><use href="#pc-knight" /></svg></span>
+              </span>
+              <span class="name">SCHACH</span>
+            </div>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article style="display: grid; justify-items: center; gap: var(--spacing-lg); padding-block: var(--padding-lg)">
+              <div class="hero-pieces">
+                <span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-king" /></svg></span>
+                <span class="schach-piece l black"><svg aria-hidden="true"><use href="#pc-queen" /></svg></span>
+                <span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-knight" /></svg></span>
+                <span class="schach-piece l black"><svg aria-hidden="true"><use href="#pc-rook" /></svg></span>
+              </div>
+              <p class="tagline">Setze den gegnerischen König matt — das königliche Spiel.</p>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta cta-primary" id="x-btn-ai" type="button">Gegen KI</button>
+            <button class="command cta" id="x-btn-local" type="button">Lokal (2 Spieler)</button>
+            <button class="command cta outline" id="x-btn-continue" type="button" hidden>Fortsetzen</button>
+            <button class="command cta outline" id="x-btn-howto" type="button">Spielregeln</button>
+          </div>
+        </section>
+
+        <!-- =========================== SETUP ============================ -->
+        <section class="screen" id="x-screen-setup" hidden>
+          <div class="appbar">
+            <button class="command iconbtn" id="x-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
+            <div class="title" id="x-setup-title">Gegen KI</div>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <section class="panel" id="x-panel-difficulty">
+            <header>Schwierigkeit</header>
+            <article>
+              <div class="set-row stack">
+                <div><div class="lab">Stärke der KI</div><div class="desc">Wie weit rechnet der Computer voraus?</div></div>
+                <div class="segmented quad" id="x-seg-difficulty" role="group" aria-label="Schwierigkeit">
+                  <button class="command seg" type="button" data-value="easy">Leicht</button>
+                  <button class="command seg" type="button" data-value="medium">Mittel</button>
+                  <button class="command seg" type="button" data-value="hard">Schwer</button>
+                  <button class="command seg" type="button" data-value="expert">Experte</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <section class="panel" id="x-panel-first">
+            <header>Farbe</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Wer spielt Weiß?</div><div class="desc">Weiß eröffnet die Partie.</div></div>
+                <div class="segmented" id="x-seg-first" role="group" aria-label="Wer spielt Weiß">
+                  <button class="command seg" type="button" data-value="human">Du</button>
+                  <button class="command seg" type="button" data-value="ai">KI</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta cta-primary" id="x-btn-start" type="button">Spiel starten</button>
+          </div>
+        </section>
+
+        <!-- ============================ GAME ============================ -->
+        <section class="screen" id="x-screen-game" hidden>
+          <div class="appbar">
+            <button class="command iconbtn" id="x-game-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
+            <div class="title turn white" id="x-game-title">Weiß ist dran</div>
+            <button class="command iconbtn" id="x-game-restart" type="button" aria-label="Neu starten"><svg class="ico" aria-hidden="true"><use href="#ico-restart" /></svg></button>
+          </div>
+
+          <div class="board-wrap">
+            <div class="schach-board" id="x-board"></div>
+          </div>
+
+          <div class="board-actions">
+            <button class="command outline" id="x-btn-undo" type="button" disabled>↶ Zurück</button>
+          </div>
+
+          <p class="annot" id="x-game-annot" aria-live="polite">Wähle eine Figur und dann ihr Ziel.</p>
+        </section>
+
+        <!-- ============================ END ============================= -->
+        <section class="screen" id="x-screen-end" hidden>
+          <div class="appbar">
+            <button class="command iconbtn" id="x-end-back" type="button" aria-label="Startseite"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
+            <div class="title" id="x-end-bar">Ergebnis</div>
+            <span class="command iconbtn ghost" aria-hidden="true"></span>
+          </div>
+
+          <div class="end-hero">
+            <div class="end-glyph" id="x-end-glyph"></div>
+            <div class="end-title" id="x-end-title"></div>
+            <div class="end-sub" id="x-end-sub"></div>
+          </div>
+
+          <section class="panel">
+            <header></header>
+            <article class="final">
+              <div class="schach-board final-board" id="x-end-board"></div>
+            </article>
+            <footer></footer>
+          </section>
+
+          <div class="cta-stack">
+            <button class="command cta cta-primary" id="x-btn-again" type="button">Nochmal spielen</button>
+            <button class="command cta outline" id="x-btn-home" type="button">Startseite</button>
+          </div>
+        </section>
+
+        <!-- ========================== PROMOTION ========================= -->
+        <dialog class="howto promo" id="x-promo">
+          <section class="panel">
+            <header>Umwandlung</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Dein Bauer erreicht die letzte Reihe — wähle, in welche Figur er sich verwandelt.</p>
+              <div class="promo-choices" id="x-promo-choices">
+                <button class="command promo-choice" type="button" data-value="queen"><span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-queen" /></svg></span><span>Dame</span></button>
+                <button class="command promo-choice" type="button" data-value="rook"><span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-rook" /></svg></span><span>Turm</span></button>
+                <button class="command promo-choice" type="button" data-value="bishop"><span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-bishop" /></svg></span><span>Läufer</span></button>
+                <button class="command promo-choice" type="button" data-value="knight"><span class="schach-piece l white"><svg aria-hidden="true"><use href="#pc-knight" /></svg></span><span>Springer</span></button>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+        </dialog>
+
+        <!-- ========================= HOW TO PLAY ========================= -->
+        <dialog class="howto" id="x-howto">
+          <section class="panel">
+            <header>Spielregeln</header>
+            <article style="display: grid; gap: var(--spacing-lg)">
+              <p class="note">Weiß und Schwarz ziehen abwechselnd je eine Figur. Weiß beginnt. Ziel ist das <b>Schachmatt</b>: Der gegnerische König wird angegriffen und kann sich nicht mehr retten.</p>
+              <div class="legend">
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-pawn" /></svg></span><span><b>Bauer</b> — ein Feld vorwärts (aus der Grundstellung auch zwei), schlägt diagonal.</span></div>
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-knight" /></svg></span><span><b>Springer</b> — im L, und als Einziger über andere Figuren hinweg.</span></div>
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-bishop" /></svg></span><span><b>Läufer</b> — beliebig weit diagonal.</span></div>
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-rook" /></svg></span><span><b>Turm</b> — beliebig weit gerade.</span></div>
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-queen" /></svg></span><span><b>Dame</b> — gerade und diagonal, beliebig weit.</span></div>
+                <div class="li"><span class="schach-piece s white"><svg aria-hidden="true"><use href="#pc-king" /></svg></span><span><b>König</b> — ein Feld in jede Richtung, nie auf ein bedrohtes Feld.</span></div>
+              </div>
+              <p class="note"><b>Rochade:</b> Haben König und Turm noch nicht gezogen und sind die Felder dazwischen frei, ziehen beide in einem Zug — der König zwei Felder zum Turm hin, der Turm dahinter vorbei. Nicht aus dem Schach heraus und nicht über ein bedrohtes Feld.</p>
+              <p class="note"><b>En passant:</b> Zieht ein Bauer zwei Felder vor und landet neben einem gegnerischen Bauern, darf dieser ihn im unmittelbar folgenden Zug schlagen, als wäre er nur ein Feld gezogen.</p>
+              <p class="note"><b>Umwandlung:</b> Erreicht ein Bauer die letzte Reihe, wird er zur Dame, zum Turm, Läufer oder Springer — du wählst.</p>
+              <p class="note"><b>Remis</b> gibt es bei Patt (kein Zug möglich, aber kein Schach), bei zu wenig Material, nach 50 Zügen ohne Bauernzug oder Schlagen und bei dreifacher Stellungswiederholung.</p>
+              <button class="command cta-primary" id="x-howto-close" type="button">Verstanden</button>
             </article>
             <footer></footer>
           </section>

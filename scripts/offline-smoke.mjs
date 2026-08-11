@@ -110,6 +110,9 @@ try {
   await page.goto(`${baseUrl}#/solohalma`);
   await expectVisible("#s-btn-new", "Solo-Halma opens offline");
 
+  await page.goto(`${baseUrl}#/schach`);
+  await expectVisible("#x-btn-ai", "Schach opens offline");
+
   // The SW itself and every asset must have come from the cache.
   if (failures.length > 0) {
     throw new Error(`OFFLINE SMOKE FAILED: requests failed while offline:\n${failures.join("\n")}`);

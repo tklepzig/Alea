@@ -15,11 +15,19 @@ import type { GameController } from "./shell/game-controller.js";
 import { initQuadra } from "./games/quadra/ui.js";
 import { initCiphra } from "./games/ciphra/ui.js";
 import { initDame } from "./games/dame/ui.js";
+import { initSchach } from "./games/schach/ui.js";
 import { initMuehle } from "./games/muehle/ui.js";
 import { initHalma } from "./games/halma/ui.js";
 import { initSolohalma } from "./games/solohalma/ui.js";
 
-type GameId = "quadra" | "ciphra" | "dame" | "muehle" | "halma" | "solohalma";
+type GameId =
+  | "quadra"
+  | "ciphra"
+  | "dame"
+  | "schach"
+  | "muehle"
+  | "halma"
+  | "solohalma";
 type ViewId = "hub" | GameId;
 
 interface GameEntry {
@@ -69,6 +77,14 @@ const games: GameEntry[] = [
     themeColor: "#0e2830",
     themeColorLight: "#eaf3f8",
     controller: initDame({ onExit: goHub }),
+  },
+  {
+    id: "schach",
+    name: "Schach",
+    themeClass: "theme-schach",
+    themeColor: "#2a1e0c",
+    themeColorLight: "#f6f1e7",
+    controller: initSchach({ onExit: goHub }),
   },
   {
     id: "muehle",
