@@ -1,65 +1,66 @@
 # Alea
 
-> **Alea** — lateinisch für *Würfel / Glücksspiel* („alea iacta est"). Die
-> App-Identität ist in `shell/app.ts` zentralisiert (plus
-> `manifest.webmanifest`, `index.html` Titel/Wortmarke und die Icon-SVGs).
+> **Alea** — Latin for *die / game of chance* ("alea iacta est"). The app's
+> identity is centralised in `shell/app.ts` (plus `manifest.webmanifest`, the
+> title/wordmark in `index.html` and the icon SVGs).
 
-Kleine Offline-Spielesammlung (deutsche Oberfläche) als PWA: mehrere Spiele in
-einer App, mit einer Startseite zur Auswahl. Jedes Spiel speichert seinen
-Spielstand lokal und kann jederzeit fortgesetzt werden — komplett offline.
+A small offline game collection (German UI) shipped as a PWA: several games in
+one app, with a start page to pick from. Every game stores its state locally and
+can be resumed at any time — fully offline.
 
-Enthaltene Spiele:
+Included games (names as shown in the UI):
 
-- **Quadra** — Vier in einer Reihe gegen die KI (vier Schwierigkeitsgrade) oder
-  lokal zu zweit.
-- **Ciphra** — Knacke den geheimen Farbcode (Einzelspieler, konfigurierbar).
-- **Dame** — Schlagen, was geht — gegen die KI oder zu zweit.
-- **Schach** — Das königliche Spiel — gegen die KI oder zu zweit.
-- **Mühle** — Schließe Mühlen, nimm Steine — gegen die KI oder zu zweit.
-- **Halma** — Bring deine Steine ins gegnerische Lager — springe weit.
-- **Solo-Halma** — Steckhalma-Solitär: springe, bis nur ein Stein bleibt.
+- **Quadra** — four in a row against the AI (four difficulty levels) or locally
+  for two players.
+- **Ciphra** — crack the secret colour code (single player, configurable).
+- **Dame** (draughts) — capture whatever you can, against the AI or for two.
+- **Schach** (chess) — the royal game, against the AI or for two.
+- **Mühle** (nine men's morris) — close mills, take stones, against the AI or
+  for two.
+- **Halma** — move all your stones into the opposing camp, jumping far.
+- **Solo-Halma** — peg solitaire: keep jumping until a single stone is left.
 
-## Architektur
+## Architecture
 
-- Vanilla TypeScript + SCSS auf dem Ada-Framework, kein Framework-Runtime.
-- **Hub-Shell** (`ui.ts`): Hash-Router (`#/` Startseite, `#/quadra`, `#/ciphra`,
-  `#/dame`, `#/schach`, `#/muehle`, `#/halma`, `#/solohalma`), pro Spiel ein
-  `<section class="view">` in `index.html` mit präfixierten IDs (`q-…`, `c-…`,
-  `d-…`, `x-…`, `m-…`, `h-…`, `s-…`). Spiele implementieren den
-  `GameController`-Kontrakt (`shell/game-controller.ts`) und werden einmal beim
-  Boot initialisiert.
-- **Theming**: Hub + Quadra laufen auf Adas Blau; jedes andere Spiel bringt seine
-  eigene Farbe über eine Body-Klasse mit (`theme-ciphra`, `theme-dame`, …), die
-  die Ada-Farbvariablen im Scope neu ableitet.
-- **Persistenz**: localStorage, Keys namespaced als `alea.<spiel>.<was>`
-  (`shell/safe-storage.ts` degradiert sauber, wenn Storage nicht verfügbar ist).
+- Vanilla TypeScript + SCSS on top of the Ada framework, no framework runtime.
+- **Hub shell** (`ui.ts`): hash router (`#/` start page, `#/quadra`, `#/ciphra`,
+  `#/dame`, `#/schach`, `#/muehle`, `#/halma`, `#/solohalma`); one
+  `<section class="view">` per game in `index.html` with prefixed ids (`q-…`,
+  `c-…`, `d-…`, `x-…`, `m-…`, `h-…`, `s-…`). Games implement the
+  `GameController` contract (`shell/game-controller.ts`) and are initialised
+  once at boot.
+- **Theming**: hub and Quadra run on Ada's blue; every other game brings its own
+  colour via a body class (`theme-ciphra`, `theme-dame`, …) that re-derives the
+  Ada colour variables within that scope.
+- **Persistence**: localStorage, keys namespaced as `alea.<game>.<what>`
+  (`shell/safe-storage.ts` degrades gracefully when storage is unavailable).
 - **Offline**: [`@tklepzig/offline-kit`](https://github.com/tklepzig/offline-kit)
-  (Service Worker mit content-gehashtem Precache-Manifest, Selbstheilung ab
-  0.1.2, Readiness-Badge auf der Startseite mit Re-Check-Button).
+  (service worker with a content-hashed precache manifest, self-healing since
+  0.1.2, readiness badge on the start page with a re-check button).
 
-## Offline-Garantien
+## Offline guarantees
 
-Zwei Prüfungen sichern die 100%-Offline-Fähigkeit ab (beide laufen im Deploy):
+Two checks back the 100% offline capability (both run on deploy):
 
-1. `npm run verify:offline` — statischer Abgleich: alles, was `index.html`,
-   CSS und Web-App-Manifest referenzieren, existiert und steht im
-   Precache-Manifest des Service Workers (`offline-kit verify`, offline-kit ≥ 0.2.0).
-2. `npm run smoke:offline` — echter Browser-Test (Playwright): App laden,
-   auf „✓ Offline ready" warten, Server killen, neu laden — Hub und alle
-   Spiele müssen vollständig aus dem Cache funktionieren, ohne einen einzigen
-   fehlgeschlagenen Request.
+1. `npm run verify:offline` — static check: everything referenced by
+   `index.html`, the CSS and the web app manifest exists and is listed in the
+   service worker's precache manifest (`offline-kit verify`, offline-kit ≥
+   0.2.0).
+2. `npm run smoke:offline` — real browser test (Playwright): load the app, wait
+   for "✓ Offline ready", kill the server, reload — the hub and every game must
+   work entirely from the cache, without a single failed request.
 
-## Entwicklung
+## Development
 
 ```
 npm install
-npm run dev        # Build + Watcher + live-server
-npm run dev:no-sw  # dito, Service Worker deaktiviert (kein Cache im Weg)
-npm test           # Typecheck + Jest (Spiellogik + Persistenz)
-npm run build      # Typecheck, SASS, Bundles + Service Worker
+npm run dev        # build + watchers + live-server
+npm run dev:no-sw  # same, service worker disabled (no cache in the way)
+npm test           # typecheck + Jest (game logic + persistence)
+npm run build      # typecheck, SASS, bundles + service worker
 ```
 
-## Hinweis
+## Note
 
-Dieses Projekt ist ein privates Lernprojekt ohne kommerzielle Absichten und
-steht in keiner Verbindung zu kommerziellen Spielen oder deren Herstellern.
+This project is a private learning project with no commercial intent and is not
+affiliated with any commercial game or its makers.
