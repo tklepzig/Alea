@@ -1,7 +1,7 @@
 {
   "name": "Alea",
   "short_name": "Alea",
-  "description": "Kleine Spielesammlung — Vier in einer Reihe und Code-Knacken, voll offline.",
+  "description": "Eine Sammlung von sieben Brett- und Denkspielen, die vollständig offline funktioniert.",
   "lang": "de",
   "start_url": "./",
   "display": "standalone",

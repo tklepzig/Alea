@@ -11,16 +11,19 @@ description: >-
 
 # Add a game to Alea
 
-Adding a game is mechanical if you follow the existing pattern (Quadra `q-`,
-Ciphra `c-` are the reference implementations). The offline pipeline needs **no
+Adding a game is mechanical if you follow the existing pattern (Quadra `q-` and
+Ciphra `c-` are the reference implementations; Dame, Schach, Mühle, Halma and
+Solo-Halma follow the same shape). The offline pipeline needs **no
 changes** — the precache manifest is glob-generated from built output, so new
 code/assets are picked up automatically. Everything below exists because all
 games share ONE document: collisions are the failure mode to design against.
 
 ## 0. Decide upfront
 
-- `<id>`: lowercase module name (e.g. `quadra`) and an unused id prefix (`q-`
-  and `c-` are taken; pick the next distinct letter).
+- `<id>`: lowercase module name (e.g. `quadra`) and an unused id prefix. Taken so
+  far: `q-` (Quadra), `c-` (Ciphra), `d-` (Dame), `x-` (Schach), `m-` (Mühle),
+  `h-` (Halma), `s-` (Solo-Halma) — pick a free letter, not necessarily the
+  game's initial (Schach took `x-` because Ciphra already held `c-`).
 - German display name + one-line tagline for the hub card. If the game gets a
   family-style name, follow the scheme: 2–3 syllables, soft `-a` ending,
   mythology/Latin, hidden tie to what the game does.

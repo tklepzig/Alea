@@ -3,7 +3,7 @@
 // Serves the built app, waits for the service worker to report "✓ Offline
 // ready", then KILLS the server (real offline — network emulation doesn't
 // reliably apply to service-worker fetches) and reloads. The app must come
-// back entirely from the cache: hub renders, both games open, and not a single
+// back entirely from the cache: hub renders, every game opens, and not a single
 // network request may fail.
 //
 // Run after `npm run build`: node scripts/offline-smoke.mjs

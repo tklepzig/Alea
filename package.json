@@ -2,7 +2,7 @@
   "name": "alea",
   "version": "0.1.0",
   "type": "module",
-  "description": "Offline game collection (German UI): four-in-a-row and a code-breaking game in one PWA. Built on the Ada framework.",
+  "description": "Offline game collection (German UI): seven board and puzzle games in one PWA. Built on the Ada framework.",
   "scripts": {
     "start": "npx --yes live-server .",
     "build": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit && sass --load-path=node_modules --quiet-deps style.scss:style.min.css -s compressed --no-source-map && offline-kit build",

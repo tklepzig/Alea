@@ -13,22 +13,24 @@ Enthaltene Spiele:
 - **Quadra** — Vier in einer Reihe gegen die KI (vier Schwierigkeitsgrade) oder
   lokal zu zweit.
 - **Ciphra** — Knacke den geheimen Farbcode (Einzelspieler, konfigurierbar).
-
-Beide Spiele existieren weiterhin als eigenständige Apps
-([Quadra](https://github.com/tklepzig/Quadra),
-[Ciphra](https://github.com/tklepzig/Ciphra)); dieses Repo führt sie in einer
-gemeinsamen PWA zusammen. Gespeicherte Spielstände der Einzel-Apps werden
-nicht übernommen (anderer Origin-Pfad, getrennter localStorage).
+- **Dame** — Schlagen, was geht — gegen die KI oder zu zweit.
+- **Schach** — Das königliche Spiel — gegen die KI oder zu zweit.
+- **Mühle** — Schließe Mühlen, nimm Steine — gegen die KI oder zu zweit.
+- **Halma** — Bring deine Steine ins gegnerische Lager — springe weit.
+- **Solo-Halma** — Steckhalma-Solitär: springe, bis nur ein Stein bleibt.
 
 ## Architektur
 
 - Vanilla TypeScript + SCSS auf dem Ada-Framework, kein Framework-Runtime.
-- **Hub-Shell** (`ui.ts`): Hash-Router (`#/` Startseite, `#/quadra`, `#/ciphra`),
-  pro Spiel ein `<section class="view">` in `index.html` mit präfixierten IDs
-  (`q-…`, `c-…`). Spiele implementieren den `GameController`-Kontrakt
-  (`shell/game-controller.ts`) und werden einmal beim Boot initialisiert.
-- **Theming**: Hub + Quadra laufen auf Adas Blau; Ciphra behält Grün über eine
-  Body-Klasse (`theme-ciphra`), die die Ada-Farbvariablen im Scope neu ableitet.
+- **Hub-Shell** (`ui.ts`): Hash-Router (`#/` Startseite, `#/quadra`, `#/ciphra`,
+  `#/dame`, `#/schach`, `#/muehle`, `#/halma`, `#/solohalma`), pro Spiel ein
+  `<section class="view">` in `index.html` mit präfixierten IDs (`q-…`, `c-…`,
+  `d-…`, `x-…`, `m-…`, `h-…`, `s-…`). Spiele implementieren den
+  `GameController`-Kontrakt (`shell/game-controller.ts`) und werden einmal beim
+  Boot initialisiert.
+- **Theming**: Hub + Quadra laufen auf Adas Blau; jedes andere Spiel bringt seine
+  eigene Farbe über eine Body-Klasse mit (`theme-ciphra`, `theme-dame`, …), die
+  die Ada-Farbvariablen im Scope neu ableitet.
 - **Persistenz**: localStorage, Keys namespaced als `alea.<spiel>.<was>`
   (`shell/safe-storage.ts` degradiert sauber, wenn Storage nicht verfügbar ist).
 - **Offline**: [`@tklepzig/offline-kit`](https://github.com/tklepzig/offline-kit)
@@ -43,7 +45,7 @@ Zwei Prüfungen sichern die 100%-Offline-Fähigkeit ab (beide laufen im Deploy):
    CSS und Web-App-Manifest referenzieren, existiert und steht im
    Precache-Manifest des Service Workers (`offline-kit verify`, offline-kit ≥ 0.2.0).
 2. `npm run smoke:offline` — echter Browser-Test (Playwright): App laden,
-   auf „✓ Offline ready" warten, Server killen, neu laden — Hub und beide
+   auf „✓ Offline ready" warten, Server killen, neu laden — Hub und alle
    Spiele müssen vollständig aus dem Cache funktionieren, ohne einen einzigen
    fehlgeschlagenen Request.
 
