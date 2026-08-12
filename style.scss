@@ -1858,6 +1858,8 @@ button.peg {
     width: 100%;
     max-width: 26rem;
     aspect-ratio: 1;
+    // Padding can't inset the points (absolute children resolve against the
+    // padding box) — LATTICE_INSET_PCT in games/muehle/ui.ts does that instead.
     padding: 0;
     background: oklch(var(--950));
     border: 2px solid oklch(var(--700));
@@ -1889,10 +1891,15 @@ button.peg {
   // 24 point buttons, absolutely positioned by percentage (translate centres the
   // hit area on the coordinate). Each shows a small node dot; an occupied point
   // covers it with a stone.
+  //
+  // The points sit on a 7×7 lattice (see the geometry block in
+  // games/muehle/ui.ts), so a hit area of exactly one cell tiles edge-to-edge:
+  // every point gets a full, generous tap target and no two ever overlap, not
+  // even on the tight inner ring.
   .mp {
     position: absolute;
-    width: 12%;
-    height: 12%;
+    width: 13.857%; // one lattice cell — keep in sync with CELL_PCT in games/muehle/ui.ts
+    height: 13.857%;
     transform: translate(-50%, -50%);
     display: grid;
     place-items: center;
@@ -1906,7 +1913,7 @@ button.peg {
     }
     &::before {
       content: "";
-      width: 26%;
+      width: 22%; // the node dot keeps its old size now the point box is wider
       aspect-ratio: 1;
       border-radius: 50%;
       background: oklch(var(--500) / 0.55);
@@ -1917,12 +1924,13 @@ button.peg {
       border-radius: 50%;
     }
   }
-  // Stones sit a good bit smaller than the point so the 24-point board doesn't
-  // feel crowded. Keep in sync with SLIDE_PER_BOARD_PCT in games/muehle/ui.ts.
+  // A stone covers half its point, so half a cell of air stays between
+  // neighbours even on the inner ring — and the tap target keeps the full cell
+  // regardless. Keep the 50% in sync with STONE_OF_CELL in games/muehle/ui.ts.
   .mp .muehle-stone {
     position: absolute;
-    width: 62%;
-    height: 62%;
+    width: 50%;
+    height: 50%;
   }
 
   // Empty destinations (placement or slide) light their node; playable and

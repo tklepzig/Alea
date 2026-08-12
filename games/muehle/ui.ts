@@ -58,12 +58,26 @@ function clearGame(): void {
 // ---------------------------------------------------------------------------
 // Point geometry — three rings, each with 8 points (percent coordinates on the
 // square board). Index = ring*8 + position (0=TL … 7=LM, clockwise).
+//
+// The 24 points sit on a 7×7 lattice: the rings occupy columns/rows 0|6, 1|5 and
+// 2|4, with the spokes on 3. Every point therefore owns one lattice cell, and no
+// two points are closer than one cell apart — which is what lets the hit areas
+// be a full cell wide without ever overlapping (the old geometry put the inner
+// ring 6% apart while its hit boxes were 12% wide, so half of each inner point
+// was covered by its neighbour and swallowed the tap).
 // ---------------------------------------------------------------------------
-const RING_EXTENT = [
-  { lo: 9, hi: 91 },
-  { lo: 29, hi: 71 },
-  { lo: 44, hi: 56 },
-];
+// A small inset all round keeps the outer ring's corner stones off the board's
+// rounded border; the lattice divides what's left.
+const LATTICE_INSET_PCT = 1.5;
+const CELL_PCT = (100 - 2 * LATTICE_INSET_PCT) / 7;
+const cellCenter = (index: number): number => LATTICE_INSET_PCT + (index + 0.5) * CELL_PCT;
+// How much of its cell a stone covers — the rest is the air between neighbours.
+// Keep in sync with the .mp .muehle-stone width in style.scss.
+const STONE_OF_CELL = 0.5;
+const RING_EXTENT = [0, 1, 2].map((ring) => ({
+  lo: cellCenter(ring),
+  hi: cellCenter(6 - ring),
+}));
 const MID = 50;
 
 function buildPositions(): { x: number; y: number }[] {
@@ -128,10 +142,9 @@ let moveAnim: { at: number; sx: number; sy: number; slide: boolean } | null = nu
 let capturedGhost: { at: number; player: Player } | null = null;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
 const CAPTURE_FLASH_MS = 720;
-// A stone is 62% of a point which is 12% of the board (keep in sync with the
-// .muehle-stone width in style.scss), so its width is 7.44% of the board;
-// translating by (board-% distance ÷ 7.44) × 100 shifts it that far.
-const SLIDE_PER_BOARD_PCT = 100 / (12 * 0.62);
+// The slide is expressed in % of the stone's own width, so a board-% distance
+// has to be divided by the stone's board-% width — itself a fraction of a cell.
+const SLIDE_PER_BOARD_PCT = 100 / (CELL_PCT * STONE_OF_CELL);
 
 const byId = <T extends HTMLElement>(id: string): T =>
   document.getElementById(`m-${id}`) as T;
