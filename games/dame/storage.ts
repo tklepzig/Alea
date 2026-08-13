@@ -28,6 +28,8 @@ export interface Settings {
   difficulty: Difficulty;
   /** In AI mode, does the human take the (red) first move? */
   humanFirst: boolean;
+  /** Undo button available during the game? Chosen before it starts. */
+  allowUndo: boolean;
   /** Variant: the Dame moves and captures along the whole diagonal. */
   flyingKings: boolean;
   /** Variant: Mehrschlagzwang — only the longest capture sequences are legal. */
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: "ai",
   difficulty: "medium",
   humanFirst: true,
+  allowUndo: true,
   flyingKings: false,
   maxCapture: false,
 };
@@ -106,6 +109,7 @@ export function isSettings(value: unknown): value is Settings {
     MODES.includes(settings.mode) &&
     DIFFICULTIES.includes(settings.difficulty) &&
     typeof settings.humanFirst === "boolean" &&
+    typeof settings.allowUndo === "boolean" &&
     typeof settings.flyingKings === "boolean" &&
     typeof settings.maxCapture === "boolean"
   );
@@ -156,7 +160,13 @@ export function serializeSettings(settings: Settings): string {
 
 export function deserializeSettings(raw: string | null): Settings | null {
   const data = parseEnvelope(raw);
-  return isSettings(data) ? data : null;
+  // Blobs written before the no-undo option lack allowUndo — fill in that one
+  // field (undo on) before validating, so the guard still proves every other.
+  const filled =
+    typeof data === "object" && data !== null && !("allowUndo" in data)
+      ? { ...data, allowUndo: DEFAULT_SETTINGS.allowUndo }
+      : data;
+  return isSettings(filled) ? filled : null;
 }
 
 export function serializeGame(state: GameState): string {

@@ -51,7 +51,7 @@ describe("game persistence", () => {
 
 describe("settings persistence", () => {
   it("round-trips settings", () => {
-    const settings: Settings = { mode: "ai", difficulty: "easy", humanFirst: false };
+    const settings: Settings = { mode: "ai", difficulty: "easy", humanFirst: false, allowUndo: false };
     expect(deserializeSettings(serializeSettings(settings))).toEqual(settings);
   });
 
@@ -72,5 +72,12 @@ describe("settings persistence", () => {
         JSON.stringify({ v: 1, data: { mode: "x", difficulty: "hard", humanFirst: true } }),
       ),
     ).toBeNull();
+  });
+
+  it("reads a blob written before the no-undo option as undo-on", () => {
+    const { allowUndo: _, ...legacy } = DEFAULT_SETTINGS;
+    expect(deserializeSettings(JSON.stringify({ v: 1, data: legacy }))).toEqual(
+      DEFAULT_SETTINGS,
+    );
   });
 });

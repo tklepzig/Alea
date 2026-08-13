@@ -5,6 +5,7 @@
 
 import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
+import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
 import {
   SIZE,
@@ -31,6 +32,7 @@ import {
 
 const GAME_KEY = `${APP_ID}.halma.game`;
 const SETTINGS_KEY = `${APP_ID}.halma.settings`;
+const UNDO_LOCK_KEY = `${APP_ID}.halma.undo-lock`;
 
 // The AI "thinks" briefly, then plays its move; a multi-hop jump animates one
 // hop at a time.
@@ -54,6 +56,10 @@ function saveGame(state: GameState): void {
 }
 function clearGame(): void {
   safeRemove(GAME_KEY);
+  // Release the lock with the game it belonged to. The in-memory flag stays as
+  // it is on purpose: the finished board is still on screen, and its undo row
+  // must not pop back in. startGame re-captures it for the next game.
+  setUndoAllowed(UNDO_LOCK_KEY, true);
 }
 
 const RED_CAMP = targetCamp("blue"); // top-left (blue's target, red's home)
@@ -69,6 +75,10 @@ let selected: Square | null = null;
 // States at the start of each human turn, for undo: one pop reverts the whole
 // jump-chain plus the AI reply that followed. Not persisted.
 let history: GameState[] = [];
+// Does the *running* game offer undo? Captured from the setting when the game
+// starts and persisted alongside it, so flipping the setting mid-game — or
+// relaunching the app — can't hand the button back.
+let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
@@ -226,6 +236,7 @@ function paintStatus(): void {
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+  byId("board-actions").hidden = !undoAllowed;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -254,7 +265,7 @@ function humanMove(move: Move): void {
   if (!game) return;
   // Snapshot at the start of the turn (not mid jump-chain), so one undo reverts
   // the whole chain — and the AI reply, which lands after the snapshot.
-  if (!game.jumpingFrom) history.push(game);
+  if (undoAllowed && !game.jumpingFrom) history.push(game);
   game = applyMove(game, move);
   noteMove(move);
 
@@ -412,8 +423,11 @@ function renderEnd(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Setup screen (AI mode only)
+// Setup screen — both modes pass through it, so every option sits in one place;
+// the KI-only panels are hidden in local mode.
 // ---------------------------------------------------------------------------
+let setupMode: Mode = "ai";
+
 function markSegment(groupId: string, value: string): void {
   for (const button of byId(groupId).querySelectorAll<HTMLButtonElement>(".seg")) {
     button.classList.toggle("active", button.dataset.value === value);
@@ -422,8 +436,13 @@ function markSegment(groupId: string, value: string): void {
 }
 
 function renderSetup(): void {
+  const local = setupMode === "local";
+  byId("setup-title").textContent = local ? "Lokal (2 Spieler)" : "Gegen KI";
+  byId("panel-difficulty").hidden = local;
+  byId("panel-first").hidden = local;
   markSegment("seg-difficulty", settings.difficulty);
   markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+  markSegment("seg-undo", settings.allowUndo ? "on" : "off");
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +461,10 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "red" : "blue" });
   selected = null;
   history = [];
+  // The only place the choice is captured — every new game (incl. restart and
+  // rematch) comes through here, and nothing else writes the lock.
+  undoAllowed = settings.allowUndo;
+  setUndoAllowed(UNDO_LOCK_KEY, undoAllowed);
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -467,7 +490,8 @@ function goHome(): void {
   showScreen("home");
 }
 
-function openSetup(): void {
+function openSetup(mode: Mode): void {
+  setupMode = mode;
   renderSetup();
   showScreen("setup");
 }
@@ -479,14 +503,15 @@ export function initHalma(host: GameHost): GameController {
   const howto = byId<HTMLDialogElement>("howto");
 
   byId("home-hub").addEventListener("click", host.onExit);
-  byId("btn-ai").addEventListener("click", openSetup);
-  byId("btn-local").addEventListener("click", () => startGame("local"));
+  byId("btn-ai").addEventListener("click", () => openSetup("ai"));
+  byId("btn-local").addEventListener("click", () => openSetup("local"));
   byId("btn-continue").addEventListener("click", resumeGame);
   byId("btn-howto").addEventListener("click", () => howto.showModal());
 
   byId("setup-back").addEventListener("click", goHome);
-  byId("btn-start-ai").addEventListener("click", () =>
-    startGame("ai", settings.difficulty, settings.humanFirst),
+  byId("btn-start").addEventListener("click", () =>
+    // In local mode "who starts" doesn't apply — red always opens.
+    startGame(setupMode, settings.difficulty, setupMode === "local" || settings.humanFirst),
   );
 
   byId("seg-difficulty").addEventListener("click", (event) => {
@@ -502,6 +527,14 @@ export function initHalma(host: GameHost): GameController {
     const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
     if (value !== "human" && value !== "ai") return;
     settings = { ...settings, humanFirst: value === "human" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-undo").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, allowUndo: value === "on" };
     saveSettings(settings);
     renderSetup();
   });

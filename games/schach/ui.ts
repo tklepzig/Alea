@@ -6,6 +6,7 @@
 
 import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
+import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
 import {
   SIZE,
@@ -36,6 +37,7 @@ import {
 
 const GAME_KEY = `${APP_ID}.schach.game`;
 const SETTINGS_KEY = `${APP_ID}.schach.settings`;
+const UNDO_LOCK_KEY = `${APP_ID}.schach.undo-lock`;
 
 // How long the AI "thinks" before its move — avoids an instant, jarring reply.
 // It also has to outlast the slide it follows: the AI's move rebuilds the board,
@@ -74,6 +76,10 @@ function saveGame(state: GameState): void {
 }
 function clearGame(): void {
   safeRemove(GAME_KEY);
+  // Release the lock with the game it belonged to. The in-memory flag stays as
+  // it is on purpose: the finished board is still on screen, and its undo row
+  // must not pop back in. startGame re-captures it for the next game.
+  setUndoAllowed(UNDO_LOCK_KEY, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -87,6 +93,10 @@ let selected: Square | null = null;
 // States at the start of each human move, for undo: one pop reverts that move
 // plus the AI reply that followed. Not persisted.
 let history: GameState[] = [];
+// Does the *running* game offer undo? Captured from the setting when the game
+// starts and persisted alongside it, so flipping the setting mid-game — or
+// relaunching the app — can't hand the button back.
+let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
@@ -363,6 +373,7 @@ function paintStatus(): void {
   setText(title, turnText(game));
   title.className = `title turn ${game.currentPlayer}`;
   setText(byId("game-annot"), annotText(game));
+  byId("board-actions").hidden = !undoAllowed;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -431,7 +442,7 @@ function play(move: Move): void {
   if (!game) return;
   // Snapshot before a human move, so one undo reverts it and the AI's reply.
   const humanMover = game.mode === "local" || game.currentPlayer === game.humanPlayer;
-  if (humanMover) history.push(game);
+  if (undoAllowed && humanMover) history.push(game);
 
   const captured = move.captured
     ? { at: move.captured, piece: game.board[move.captured.row][move.captured.col]! }
@@ -574,6 +585,7 @@ function renderSetup(): void {
   byId("panel-first").hidden = local;
   markSegment("seg-difficulty", settings.difficulty);
   markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+  markSegment("seg-undo", settings.allowUndo ? "on" : "off");
 }
 
 // ---------------------------------------------------------------------------
@@ -594,6 +606,10 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
   game = createGame({ mode, difficulty, humanPlayer: humanFirst ? "white" : "black" });
   selected = null;
   history = [];
+  // The only place the choice is captured — every new game (incl. restart and
+  // rematch) comes through here, and nothing else writes the lock.
+  undoAllowed = settings.allowUndo;
+  setUndoAllowed(UNDO_LOCK_KEY, undoAllowed);
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -672,6 +688,14 @@ export function initSchach(host: GameHost): GameController {
     const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
     if (value !== "human" && value !== "ai") return;
     settings = { ...settings, humanFirst: value === "human" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-undo").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, allowUndo: value === "on" };
     saveSettings(settings);
     renderSetup();
   });

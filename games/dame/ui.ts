@@ -6,6 +6,7 @@
 
 import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
+import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
 import {
   SIZE,
@@ -32,6 +33,7 @@ import {
 
 const GAME_KEY = `${APP_ID}.dame.game`;
 const SETTINGS_KEY = `${APP_ID}.dame.settings`;
+const UNDO_LOCK_KEY = `${APP_ID}.dame.undo-lock`;
 
 // How long the AI "thinks" before its move — avoids an instant, jarring reply.
 // It also has to outlast the slide it follows: the AI's move rebuilds the board,
@@ -67,6 +69,10 @@ function saveGame(state: GameState): void {
 }
 function clearGame(): void {
   safeRemove(GAME_KEY);
+  // Release the lock with the game it belonged to. The in-memory flag stays as
+  // it is on purpose: the finished board is still on screen, and its undo row
+  // must not pop back in. startGame re-captures it for the next game.
+  setUndoAllowed(UNDO_LOCK_KEY, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +86,10 @@ let selected: Square | null = null;
 // States at the start of each human turn, for undo: one pop reverts the whole
 // turn (all hops of a multi-jump) plus the AI reply that followed. Not persisted.
 let history: GameState[] = [];
+// Does the *running* game offer undo? Captured from the setting when the game
+// starts and persisted alongside it, so flipping the setting mid-game — or
+// relaunching the app — can't hand the button back.
+let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
@@ -267,6 +277,7 @@ function paintStatus(): void {
   title.textContent = turnText(game);
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
+  byId("board-actions").hidden = !undoAllowed;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -313,7 +324,7 @@ function step(move: Move): void {
   // Snapshot at the start of a human turn (not mid multi-jump), so one undo
   // reverts the whole chain — and the AI reply, which lands after the snapshot.
   const humanMover = game.mode === "local" || game.currentPlayer === game.humanPlayer;
-  if (humanMover && !game.mustContinueFrom) history.push(game);
+  if (undoAllowed && humanMover && !game.mustContinueFrom) history.push(game);
   const mover = game.currentPlayer;
   const pendingBefore = game.pendingCaptures;
   game = applyMove(game, move);
@@ -445,6 +456,7 @@ function renderSetup(): void {
   byId("panel-first").hidden = local;
   markSegment("seg-difficulty", settings.difficulty);
   markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+  markSegment("seg-undo", settings.allowUndo ? "on" : "off");
   markSegment("seg-flying", settings.flyingKings ? "on" : "off");
   markSegment("seg-maxcapture", settings.maxCapture ? "on" : "off");
 }
@@ -479,6 +491,10 @@ function startGame(
   });
   selected = null;
   history = [];
+  // The only place the choice is captured — every new game (incl. restart and
+  // rematch) comes through here, and nothing else writes the lock.
+  undoAllowed = settings.allowUndo;
+  setUndoAllowed(UNDO_LOCK_KEY, undoAllowed);
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -493,7 +509,7 @@ function resumeGame(): void {
   // Resumed mid multi-jump there's no turn-start state to snapshot, and the
   // continuation hops won't push one — seed the stack with the closest
   // reachable boundary so the first post-resume turn stays undoable.
-  if (game.mustContinueFrom) history.push(game);
+  if (undoAllowed && game.mustContinueFrom) history.push(game);
   selected = game.mustContinueFrom;
   showScreen("game");
   renderGame();
@@ -561,6 +577,14 @@ export function initDame(host: GameHost): GameController {
     const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
     if (value !== "human" && value !== "ai") return;
     settings = { ...settings, humanFirst: value === "human" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-undo").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, allowUndo: value === "on" };
     saveSettings(settings);
     renderSetup();
   });

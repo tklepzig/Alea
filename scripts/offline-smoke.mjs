@@ -93,7 +93,8 @@ try {
   await page.click("#card-quadra");
   await expectVisible("#q-btn-ai", "Quadra opens offline");
   await page.click("#q-btn-ai");
-  await expectVisible("#q-btn-start-ai", "Quadra setup opens offline");
+  await expectVisible("#q-btn-start", "Quadra setup opens offline");
+  await expectVisible("#q-seg-undo", "Quadra setup options render offline");
 
   await page.goto(`${baseUrl}#/ciphra`);
   await expectVisible("#c-btn-new", "Ciphra opens offline");

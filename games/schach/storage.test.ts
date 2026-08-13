@@ -46,6 +46,13 @@ describe("settings", () => {
     ).toBeNull();
     expect(isSettings({ mode: "ai" })).toBe(false);
   });
+
+  test("reads a blob written before the no-undo option as undo-on", () => {
+    const { allowUndo: _, ...legacy } = DEFAULT_SETTINGS;
+    expect(deserializeSettings(JSON.stringify({ v: 1, data: legacy }))).toEqual(
+      DEFAULT_SETTINGS,
+    );
+  });
 });
 
 describe("game state", () => {

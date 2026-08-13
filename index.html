@@ -218,11 +218,11 @@
         <section class="screen" id="q-screen-setup" hidden>
           <div class="appbar">
             <button class="command iconbtn" id="q-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
-            <div class="title">Gegen KI</div>
+            <div class="title" id="q-setup-title">Gegen KI</div>
             <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
-          <section class="panel">
+          <section class="panel" id="q-panel-difficulty">
             <header>Schwierigkeit</header>
             <article>
               <div class="set-row stack">
@@ -238,7 +238,7 @@
             <footer></footer>
           </section>
 
-          <section class="panel">
+          <section class="panel" id="q-panel-first">
             <header>Erster Zug</header>
             <article>
               <div class="set-row">
@@ -252,8 +252,22 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Zurück-Taste</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Züge zurücknehmen</div><div class="desc">Aus: jeder Zug steht — kein Zurück im laufenden Spiel.</div></div>
+                <div class="segmented" id="q-seg-undo" role="group" aria-label="Zurück-Taste">
+                  <button class="command seg" type="button" data-value="on">Erlaubt</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
-            <button class="command cta cta-primary" id="q-btn-start-ai" type="button">Spiel starten</button>
+            <button class="command cta cta-primary" id="q-btn-start" type="button">Spiel starten</button>
           </div>
         </section>
 
@@ -269,7 +283,7 @@
             <div class="board" id="q-board"></div>
           </div>
 
-          <div class="board-actions">
+          <div class="board-actions" id="q-board-actions">
             <button class="command outline" id="q-btn-undo" type="button" disabled>↶ Zurück</button>
           </div>
 
@@ -580,6 +594,20 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Zurück-Taste</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Züge zurücknehmen</div><div class="desc">Aus: jeder Zug steht — kein Zurück im laufenden Spiel.</div></div>
+                <div class="segmented" id="d-seg-undo" role="group" aria-label="Zurück-Taste">
+                  <button class="command seg" type="button" data-value="on">Erlaubt</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
             <button class="command cta cta-primary" id="d-btn-start" type="button">Spiel starten</button>
           </div>
@@ -597,7 +625,7 @@
             <div class="dame-board" id="d-board"></div>
           </div>
 
-          <div class="board-actions">
+          <div class="board-actions" id="d-board-actions">
             <button class="command outline" id="d-btn-undo" type="button" disabled>↶ Zurück</button>
           </div>
 
@@ -729,6 +757,20 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Zurück-Taste</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Züge zurücknehmen</div><div class="desc">Aus: jeder Zug steht — kein Zurück im laufenden Spiel.</div></div>
+                <div class="segmented" id="x-seg-undo" role="group" aria-label="Zurück-Taste">
+                  <button class="command seg" type="button" data-value="on">Erlaubt</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
             <button class="command cta cta-primary" id="x-btn-start" type="button">Spiel starten</button>
           </div>
@@ -746,7 +788,7 @@
             <div class="schach-board" id="x-board"></div>
           </div>
 
-          <div class="board-actions">
+          <div class="board-actions" id="x-board-actions">
             <button class="command outline" id="x-btn-undo" type="button" disabled>↶ Zurück</button>
           </div>
 
@@ -863,11 +905,11 @@
         <section class="screen" id="m-screen-setup" hidden>
           <div class="appbar">
             <button class="command iconbtn" id="m-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
-            <div class="title">Gegen KI</div>
+            <div class="title" id="m-setup-title">Gegen KI</div>
             <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
-          <section class="panel">
+          <section class="panel" id="m-panel-difficulty">
             <header>Schwierigkeit</header>
             <article>
               <div class="set-row stack">
@@ -883,7 +925,7 @@
             <footer></footer>
           </section>
 
-          <section class="panel">
+          <section class="panel" id="m-panel-first">
             <header>Erster Zug</header>
             <article>
               <div class="set-row">
@@ -897,8 +939,22 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Zurück-Taste</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Züge zurücknehmen</div><div class="desc">Aus: jeder Zug steht — kein Zurück im laufenden Spiel.</div></div>
+                <div class="segmented" id="m-seg-undo" role="group" aria-label="Zurück-Taste">
+                  <button class="command seg" type="button" data-value="on">Erlaubt</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
-            <button class="command cta cta-primary" id="m-btn-start-ai" type="button">Spiel starten</button>
+            <button class="command cta cta-primary" id="m-btn-start" type="button">Spiel starten</button>
           </div>
         </section>
 
@@ -914,7 +970,7 @@
             <div class="muehle-board" id="m-board"></div>
           </div>
 
-          <div class="board-actions">
+          <div class="board-actions" id="m-board-actions">
             <button class="command outline" id="m-btn-undo" type="button" disabled>↶ Zurück</button>
           </div>
 
@@ -1007,11 +1063,11 @@
         <section class="screen" id="h-screen-setup" hidden>
           <div class="appbar">
             <button class="command iconbtn" id="h-setup-back" type="button" aria-label="Zurück"><svg class="ico" aria-hidden="true"><use href="#ico-back" /></svg></button>
-            <div class="title">Gegen KI</div>
+            <div class="title" id="h-setup-title">Gegen KI</div>
             <span class="command iconbtn ghost" aria-hidden="true"></span>
           </div>
 
-          <section class="panel">
+          <section class="panel" id="h-panel-difficulty">
             <header>Schwierigkeit</header>
             <article>
               <div class="set-row stack">
@@ -1027,7 +1083,7 @@
             <footer></footer>
           </section>
 
-          <section class="panel">
+          <section class="panel" id="h-panel-first">
             <header>Erster Zug</header>
             <article>
               <div class="set-row">
@@ -1041,8 +1097,22 @@
             <footer></footer>
           </section>
 
+          <section class="panel">
+            <header>Zurück-Taste</header>
+            <article>
+              <div class="set-row">
+                <div><div class="lab">Züge zurücknehmen</div><div class="desc">Aus: jeder Zug steht — kein Zurück im laufenden Spiel.</div></div>
+                <div class="segmented" id="h-seg-undo" role="group" aria-label="Zurück-Taste">
+                  <button class="command seg" type="button" data-value="on">Erlaubt</button>
+                  <button class="command seg" type="button" data-value="off">Aus</button>
+                </div>
+              </div>
+            </article>
+            <footer></footer>
+          </section>
+
           <div class="cta-stack">
-            <button class="command cta cta-primary" id="h-btn-start-ai" type="button">Spiel starten</button>
+            <button class="command cta cta-primary" id="h-btn-start" type="button">Spiel starten</button>
           </div>
         </section>
 
@@ -1058,7 +1128,7 @@
             <div class="halma-board" id="h-board"></div>
           </div>
 
-          <div class="board-actions">
+          <div class="board-actions" id="h-board-actions">
             <button class="command outline" id="h-btn-undo" type="button" disabled>↶ Zurück</button>
           </div>
 

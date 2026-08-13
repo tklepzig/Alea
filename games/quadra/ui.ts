@@ -6,6 +6,7 @@
 
 import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
+import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
 import {
   COLUMNS,
@@ -33,6 +34,7 @@ import {
 
 const GAME_KEY = `${APP_ID}.quadra.game`;
 const SETTINGS_KEY = `${APP_ID}.quadra.settings`;
+const UNDO_LOCK_KEY = `${APP_ID}.quadra.undo-lock`;
 
 // How long the AI "thinks" before moving — avoids an instant, jarring reply.
 const AI_DELAY_MS = 550;
@@ -53,6 +55,10 @@ function saveGame(state: GameState): void {
 }
 function clearGame(): void {
   safeRemove(GAME_KEY);
+  // Release the lock with the game it belonged to. The in-memory flag stays as
+  // it is on purpose: the finished board is still on screen, and its undo row
+  // must not pop back in. startGame re-captures it for the next game.
+  setUndoAllowed(UNDO_LOCK_KEY, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +73,10 @@ let lastDrop: Move | null = null;
 // AI reply that followed (the snapshot predates both). Not persisted — a
 // resumed game starts with a fresh stack, like Solo-Halma.
 let history: GameState[] = [];
+// Does the *running* game offer undo? Captured from the setting when the game
+// starts and persisted alongside it, so flipping the setting mid-game — or
+// relaunching the app — can't hand the button back.
+let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
@@ -187,6 +197,7 @@ function renderGame(): void {
     ? ""
     : "Tippe eine Spalte, um einen Stein zu setzen.";
 
+  byId("board-actions").hidden = !undoAllowed;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 
@@ -218,7 +229,7 @@ function step(column: number): void {
   if (!game) return;
   // Snapshot before a human move (states are immutable) — the AI's reply lands
   // after the snapshot, so one undo takes back the whole exchange.
-  if (game.mode === "local" || game.currentPlayer === game.humanPlayer) {
+  if (undoAllowed && (game.mode === "local" || game.currentPlayer === game.humanPlayer)) {
     history.push(game);
   }
   lastDrop = { column, row: lowestEmptyRow(game.board, column) };
@@ -314,8 +325,11 @@ function renderEnd(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Setup screen (AI mode only)
+// Setup screen — both modes pass through it, so every option sits in one place;
+// the KI-only panels are hidden in local mode.
 // ---------------------------------------------------------------------------
+let setupMode: Mode = "ai";
+
 function markSegment(groupId: string, value: string): void {
   for (const button of byId(groupId).querySelectorAll<HTMLButtonElement>(".seg")) {
     button.classList.toggle("active", button.dataset.value === value);
@@ -324,8 +338,13 @@ function markSegment(groupId: string, value: string): void {
 }
 
 function renderSetup(): void {
+  const local = setupMode === "local";
+  byId("setup-title").textContent = local ? "Lokal (2 Spieler)" : "Gegen KI";
+  byId("panel-difficulty").hidden = local;
+  byId("panel-first").hidden = local;
   markSegment("seg-difficulty", settings.difficulty);
   markSegment("seg-first", settings.humanFirst ? "human" : "ai");
+  markSegment("seg-undo", settings.allowUndo ? "on" : "off");
 }
 
 // ---------------------------------------------------------------------------
@@ -348,6 +367,10 @@ function startGame(mode: Mode, difficulty = settings.difficulty, humanFirst = tr
   });
   lastDrop = null;
   history = [];
+  // The only place the choice is captured — every new game (incl. restart and
+  // rematch) comes through here, and nothing else writes the lock.
+  undoAllowed = settings.allowUndo;
+  setUndoAllowed(UNDO_LOCK_KEY, undoAllowed);
   saveGame(game);
   showScreen("game");
   renderGame();
@@ -370,7 +393,8 @@ function goHome(): void {
   showScreen("home");
 }
 
-function openSetup(): void {
+function openSetup(mode: Mode): void {
+  setupMode = mode;
   renderSetup();
   showScreen("setup");
 }
@@ -383,14 +407,15 @@ export function initQuadra(host: GameHost): GameController {
   const openHowto = (): void => howto.showModal();
 
   byId("home-hub").addEventListener("click", host.onExit);
-  byId("btn-ai").addEventListener("click", openSetup);
-  byId("btn-local").addEventListener("click", () => startGame("local"));
+  byId("btn-ai").addEventListener("click", () => openSetup("ai"));
+  byId("btn-local").addEventListener("click", () => openSetup("local"));
   byId("btn-continue").addEventListener("click", resumeGame);
   byId("btn-howto").addEventListener("click", openHowto);
 
   byId("setup-back").addEventListener("click", goHome);
-  byId("btn-start-ai").addEventListener("click", () =>
-    startGame("ai", settings.difficulty, settings.humanFirst),
+  byId("btn-start").addEventListener("click", () =>
+    // In local mode "who starts" doesn't apply — red always opens.
+    startGame(setupMode, settings.difficulty, setupMode === "local" || settings.humanFirst),
   );
 
   byId("seg-difficulty").addEventListener("click", (event) => {
@@ -406,6 +431,14 @@ export function initQuadra(host: GameHost): GameController {
     const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
     if (value !== "human" && value !== "ai") return;
     settings = { ...settings, humanFirst: value === "human" };
+    saveSettings(settings);
+    renderSetup();
+  });
+
+  byId("seg-undo").addEventListener("click", (event) => {
+    const value = (event.target as HTMLElement).closest<HTMLButtonElement>(".seg")?.dataset.value;
+    if (value !== "on" && value !== "off") return;
+    settings = { ...settings, allowUndo: value === "on" };
     saveSettings(settings);
     renderSetup();
   });
