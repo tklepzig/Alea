@@ -8,7 +8,12 @@ import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
 import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
-import { AiCancelledError, cancelAiMoves, requestAiMove } from "../../shell/ai-client.js";
+import {
+  AiCancelledError,
+  AiUnavailableError,
+  cancelAiMoves,
+  requestAiMove,
+} from "../../shell/ai-client.js";
 import {
   SIZE,
   createGame,
@@ -394,6 +399,12 @@ function undo(): void {
   selected = game.mustContinueFrom;
   saveGame(game);
   renderGame();
+  // A popped state can belong to the AI: `resumeGame` seeds `history` with a
+  // mid-multi-jump snapshot, and that hop is the AI's whenever it was the AI
+  // chaining. Without this the board would sit on "KI denkt …" with no timer
+  // and no request — the stuck state this whole change exists to remove.
+  // `maybeScheduleAi` no-ops on a human turn, so the normal pop is unaffected.
+  maybeScheduleAi();
 }
 
 /** If it's the AI's turn (including a multi-jump continuation), think and play.
@@ -441,8 +452,14 @@ function maybeScheduleAi(): void {
       .catch((error: unknown) => {
         if (aiGeneration !== asked || error instanceof AiCancelledError) return;
         aiThinking = false;
+        // Only AiUnavailableError carries copy meant for a player. Anything
+        // else is an engine assertion ("no legal move — check status first")
+        // and must not be rendered into a German UI.
+        if (!(error instanceof AiUnavailableError)) console.error("Dame AI:", error);
         aiFailed =
-          error instanceof Error ? error.message : "Die KI konnte nicht ziehen.";
+          error instanceof AiUnavailableError
+            ? error.message
+            : "Die KI konnte nicht ziehen.";
         renderGame();
       });
   }, gap);

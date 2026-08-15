@@ -16,12 +16,20 @@ import { randomSeed, seededRandom } from "./seeded-random.js";
 /** Built by offline-kit and precached; resolved relative to the page. */
 const WORKER_URL = "ai-worker.js";
 
-// Long on purpose. This is a dead-worker detector, not a search budget: it must
-// sit clear of any search that would legitimately finish, or it would silently
-// cost playing strength on a slow device. The slowest *successful* search
-// measured is ~6s (desktop, king-and-men middlegame); the killed one gave up at
-// ~30s. 45s is comfortably past both.
-const AI_TIMEOUT_MS = 45_000;
+// How long the worker may stay *silent* before we call it dead. Re-armed on
+// every completed depth, so it measures a gap between results, not a total
+// budget — a search that keeps reporting can run as long as it likes and never
+// loses strength to the clock. Only a single depth-step longer than this is
+// truncated, and on the device where that happens (depth 6 → 8 on the 1GB
+// tablet) the step never completes anyway; it is killed around 30s.
+const AI_IDLE_TIMEOUT_MS = 25_000;
+
+// Depth cap for the main-thread fallback only. That path blocks the UI, and an
+// unbounded ladder there would reproduce the original bug exactly: ~30s of
+// frozen board and then a killed context with no timer left to notice. Depth 4
+// costs ~57ms on desktop and ~0.5s on the slow tablet. A weak move beats a dead
+// game, and this only runs when no worker could be created at all.
+const FALLBACK_MAX_DEPTH = 4;
 
 export class AiUnavailableError extends Error {
   constructor(message: string) {
@@ -46,6 +54,8 @@ interface Pending {
   /** Deepest move reported so far — the fallback if the worker goes quiet. */
   best: Move | null;
   timer: ReturnType<typeof setTimeout>;
+  /** Restarts the silence clock; called each time a depth lands. */
+  touch(): void;
 }
 
 let worker: Worker | null = null;
@@ -112,7 +122,10 @@ function ensureWorker(): Worker | null {
     const response = event.data;
     if (response.kind === "progress") {
       const entry = pending.get(response.id);
-      if (entry) entry.best = response.move;
+      if (entry) {
+        entry.best = response.move;
+        entry.touch(); // it's alive — restart the silence clock
+      }
       return;
     }
     settle(response.id, (entry) => {
@@ -141,15 +154,19 @@ function ensureWorker(): Worker | null {
  * completed; rejects with `AiUnavailableError` only when not even the shallowest
  * depth came back.
  *
- * Falls back to searching on this thread when no worker can be created — which
- * restores the old blocking behaviour, freeze and all, but only where a worker
- * was never an option to begin with.
+ * Falls back to a *shallow* search on this thread when no worker can be created.
+ * That blocks the UI, so it is capped at FALLBACK_MAX_DEPTH — running the full
+ * ladder here would be the original bug verbatim.
  */
 export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
   const active = ensureWorker();
   if (!active) {
     try {
-      return Promise.resolve(getAiMoveIterative(state, seededRandom(randomSeed())));
+      return Promise.resolve(
+        getAiMoveIterative(state, seededRandom(randomSeed()), {
+          maxDepth: FALLBACK_MAX_DEPTH,
+        }),
+      );
     } catch (error) {
       return Promise.reject(
         new AiUnavailableError(error instanceof Error ? error.message : String(error)),
@@ -159,25 +176,49 @@ export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
 
   const id = nextId++;
   return new Promise<Move>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      // Silence past the deadline means the worker is gone — the silent kill,
-      // which produces no error event at all. discardWorker settles this
-      // request through failAll: the deepest completed depth if we got one,
-      // otherwise a rejection. Rebuilding happens on the next request.
-      discardWorker("Die KI hat nicht geantwortet.");
-    }, AI_TIMEOUT_MS);
+    // Silence past the deadline means the worker is gone — the silent kill
+    // produces no error event at all, so this is the only thing that notices.
+    // discardWorker settles through failAll: the deepest completed depth if we
+    // got one, otherwise a rejection. Rebuilding happens on the next request.
+    const onSilence = () => discardWorker("Die KI hat nicht geantwortet.");
+    const entry: Pending = {
+      resolve,
+      reject,
+      best: null,
+      timer: setTimeout(onSilence, AI_IDLE_TIMEOUT_MS),
+      touch: () => {
+        clearTimeout(entry.timer);
+        entry.timer = setTimeout(onSilence, AI_IDLE_TIMEOUT_MS);
+      },
+    };
 
-    pending.set(id, { resolve, reject, best: null, timer });
+    pending.set(id, entry);
     const request: AiRequest = { id, game, state, seed: randomSeed() };
     active.postMessage(request);
   });
 }
 
-/** Drop any in-flight request — the caller has moved on (undo, restart, exit).
- *  Rejects rather than leaving the promise unsettled, which would keep its
- *  handlers (and the position they close over) alive for the page's lifetime. */
+/**
+ * Drop any in-flight request — the caller has moved on (undo, restart, exit).
+ *
+ * Rejects rather than leaving promises unsettled, which would keep their
+ * handlers (and the positions they close over) alive for the page's lifetime.
+ *
+ * Then kills the worker, which is the part that matters: the search inside it
+ * doesn't yield, so an abandoned one keeps a core busy and the *next* request
+ * queues behind it. Worse, the abandoned request's silence timer would later
+ * call `discardWorker` and terminate the worker mid-way through the new search,
+ * which has no progress of its own yet — so a plain undo during a think would
+ * surface as a spurious "KI-Fehler". Terminating fires no `onerror`, so the
+ * silent-failure bookkeeping is untouched. It also frees the worker's heap when
+ * leaving the game, on the very devices whose memory started all this.
+ */
 export function cancelAiMoves(): void {
   for (const id of [...pending.keys()]) {
     settle(id, (entry) => entry.reject(new AiCancelledError()));
+  }
+  if (worker) {
+    worker.terminate();
+    worker = null;
   }
 }

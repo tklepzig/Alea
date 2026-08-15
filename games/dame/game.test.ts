@@ -509,7 +509,17 @@ describe("getAiMove", () => {
 // final tie-break, so a constant RNG makes them pick the *same* candidate out
 // of the tied-best set — any divergence is a real change in what the AI plays.
 describe("getAiMoveIterative — differential against getAiMove", () => {
-  const alwaysFirst = (): number => 0;
+  // A constant 0 would be worse than useless here: it satisfies
+  // `random() < blunderRate` on easy (0.3) and medium (0.08), so BOTH functions
+  // short-circuit to a random move and the comparison degenerates to
+  // `moves[0] === moves[0]` — the search never runs. Roll high once to clear the
+  // blunder check (both entry points consume that roll identically), then 0 for
+  // every tie-break so each picks the first of the tied-best moves.
+  const searchingRng = (difficulty: GameState["difficulty"]): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
 
   /** Board from the frozen-tablet report: 14 pieces, no capture available, so
    *  nothing collapses the branching — the position that provoked all this. */
@@ -544,9 +554,14 @@ describe("getAiMoveIterative — differential against getAiMove", () => {
     for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
       it(`picks the same move as getAiMove — ${label}, ${difficulty}`, () => {
         const state = { ...build(), difficulty };
-        expect(getAiMoveIterative(state, alwaysFirst)).toEqual(
-          getAiMove(state, alwaysFirst),
-        );
+        // Guard the guard: if the blunder path ever swallowed these again the
+        // comparison would pass while proving nothing, so assert the ladder ran.
+        const depths: number[] = [];
+        const iterative = getAiMoveIterative(state, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toEqual(getAiMove(state, searchingRng(difficulty)));
       });
     }
   }
@@ -557,7 +572,29 @@ describe("getAiMoveIterative — differential against getAiMove", () => {
       difficulty: "expert" as const,
       flyingKings: true,
     };
-    expect(getAiMoveIterative(state, alwaysFirst)).toEqual(getAiMove(state, alwaysFirst));
+    expect(getAiMoveIterative(state, searchingRng("expert"))).toEqual(
+      getAiMove(state, searchingRng("expert")),
+    );
+  });
+
+  it("caps the ladder at maxDepth without touching the uncapped result", () => {
+    const state = { ...stateFrom(tabletPosition(), "black", { mode: "ai", humanPlayer: "red" }), difficulty: "expert" as const };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng("expert"), {
+      maxDepth: 4,
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([2, 4]);
+  });
+
+  it("ignores a maxDepth deeper than the difficulty's own target", () => {
+    const state = { ...stateFrom(tabletPosition(), "black", { mode: "ai", humanPlayer: "red" }), difficulty: "medium" as const };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng("medium"), {
+      maxDepth: 99,
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([2, 4]);
   });
 });
 
@@ -567,7 +604,9 @@ describe("getAiMoveIterative — progress", () => {
 
   const depthsFor = (state: GameState): number[] => {
     const depths: number[] = [];
-    getAiMoveIterative(state, noBlunder, (progress) => depths.push(progress.depth));
+    getAiMoveIterative(state, noBlunder, {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
     return depths;
   };
 
@@ -594,7 +633,9 @@ describe("getAiMoveIterative — progress", () => {
   it("reports a usable move at every depth, so a killed search leaves a fallback", () => {
     const state = aiOpening("hard");
     const reported: Move[] = [];
-    getAiMoveIterative(state, noBlunder, (progress) => reported.push(progress.move));
+    getAiMoveIterative(state, noBlunder, {
+      onDepth: (progress) => reported.push(progress.move),
+    });
     expect(reported).toHaveLength(3);
     for (const candidate of reported) {
       expect(isLegalMove(state, candidate)).toBe(true);
@@ -604,7 +645,9 @@ describe("getAiMoveIterative — progress", () => {
   it("does not report progress when a blunder short-circuits the search", () => {
     const state = aiOpening("easy");
     const depths: number[] = [];
-    getAiMoveIterative(state, () => 0, (progress) => depths.push(progress.depth));
+    getAiMoveIterative(state, () => 0, {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
     expect(depths).toEqual([]);
   });
 });

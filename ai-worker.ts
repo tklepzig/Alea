@@ -31,8 +31,10 @@ ctx.onmessage = (event: MessageEvent<AiRequest>): void => {
   try {
     if (game !== "dame") throw new Error(`unknown game "${game}"`);
     const random = seededRandom(seed);
-    const move = getAiMoveIterative(state, random, (progress) => {
-      post({ id, kind: "progress", depth: progress.depth, move: progress.move });
+    const move = getAiMoveIterative(state, random, {
+      onDepth: (progress) => {
+        post({ id, kind: "progress", depth: progress.depth, move: progress.move });
+      },
     });
     post({ id, kind: "done", move });
   } catch (error) {
