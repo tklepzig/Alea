@@ -12,6 +12,7 @@ import {
   onBoardCount,
   phaseOf,
   getAiMove,
+  getAiMoveIterative,
   otherPlayer,
   type Board,
   type GameState,
@@ -193,6 +194,68 @@ describe("getAiMove", () => {
     const state = stateFrom(board, { red: 7, blue: 7 }, "red", { mode: "ai", humanPlayer: "blue" });
     const chosen = getAiMove(state, seededRandom(4));
     expect(chosen).toEqual({ kind: "place", to: 2 });
+  });
+});
+
+// Iterative deepening lets a killed search leave a playable move behind. It must
+// not cost strength: the ladder ends on the same depth, so the move must match.
+// A constant-0 RNG would prove nothing — it satisfies `random() < blunderRate`
+// on easy (0.35) and medium (0.08), short-circuiting BOTH functions to a random
+// move. So: clear the blunder roll once, then 0 for every tie-break, which makes
+// both take the first of the tied-best.
+describe("getAiMoveIterative — differential against getAiMove", () => {
+  const searchingRng = (difficulty: GameState["difficulty"]): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
+
+  /** Mid-game: stones placed on both sides, mills available, plenty of slides. */
+  function midGame(): GameState {
+    const board = createBoard();
+    for (const point of [0, 1, 9, 11, 16]) board[point] = "red";
+    for (const point of [2, 4, 8, 12, 20]) board[point] = "blue";
+    return stateFrom(board, { red: 0, blue: 0 }, "red", { mode: "ai", humanPlayer: "blue" });
+  }
+
+  const positions: [string, () => GameState][] = [
+    ["opening", () => createGame({ mode: "ai", humanPlayer: "blue" })],
+    ["mid-game", midGame],
+  ];
+
+  for (const [label, build] of positions) {
+    for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
+      it(`picks the same move as getAiMove — ${label}, ${difficulty}`, () => {
+        const state = { ...build(), difficulty };
+        // Guard the guard: assert the ladder actually ran, so a future change
+        // that short-circuits the search can't make this pass vacuously.
+        const depths: number[] = [];
+        const iterative = getAiMoveIterative(state, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toEqual(getAiMove(state, searchingRng(difficulty)));
+      });
+    }
+  }
+
+  it("ends on Mühle's odd expert depth (5), which an even stride would skip", () => {
+    const state = { ...midGame(), difficulty: "expert" as const };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng("expert"), {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([2, 4, 5]);
+  });
+
+  it("reports a legal move at every depth, so a killed search leaves a fallback", () => {
+    const state = { ...midGame(), difficulty: "expert" as const };
+    const reported: ReturnType<typeof getAiMove>[] = [];
+    getAiMoveIterative(state, searchingRng("expert"), {
+      onDepth: (progress) => reported.push(progress.move),
+    });
+    expect(reported.length).toBeGreaterThan(0);
+    for (const candidate of reported) expect(isLegalMove(state, candidate)).toBe(true);
   });
 });
 

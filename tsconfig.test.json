@@ -6,6 +6,7 @@
   },
   "include": [
     "shell/ai-client.ts",
+    "shell/iterative-search.ts",
     "shell/ai-client.test.ts",
     "shell/ai-protocol.ts",
     "shell/seeded-random.ts",

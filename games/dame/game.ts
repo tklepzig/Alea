@@ -21,6 +21,15 @@
 // multi-jump they stay put, so they still block a diagonal and can't be jumped
 // a second time (`pendingCaptures`, the International rule).
 
+import {
+  iterativeBest,
+  pickBest,
+  type IterativeOptions,
+  type Scored,
+} from "../../shell/iterative-search.js";
+
+export type { IterativeOptions, SearchProgress } from "../../shell/iterative-search.js";
+
 export type Player = "red" | "black";
 export type PieceKind = "man" | "king";
 export interface Piece {
@@ -583,14 +592,11 @@ function bestMoveAtDepth(
   moves: Move[],
   depth: number,
   random: RandomFn,
-): { move: Move; score: number } {
-  const scored = moves.map((move) => ({
-    move,
-    score: scoreFirstStep(state, move, depth),
-  }));
-  const bestScore = Math.max(...scored.map((entry) => entry.score));
-  const best = scored.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)];
+): Scored<Move> {
+  return pickBest(
+    moves.map((move) => ({ move, score: scoreFirstStep(state, move, depth) })),
+    random,
+  );
 }
 
 /** The moves the search opens with, and whether a blunder short-circuits it.
@@ -626,30 +632,6 @@ export function getAiMove(
   return bestMoveAtDepth(state, moves, searchDepth(state), random).move;
 }
 
-/** The depths an iterative search walks before reaching `target`. The target is
- *  always last, even when the ladder's stride would skip it (flying expert = 5). */
-function depthLadder(target: number): number[] {
-  const ladder: number[] = [];
-  for (let depth = 2; depth < target; depth += 2) ladder.push(depth);
-  ladder.push(target);
-  return ladder;
-}
-
-export interface SearchProgress {
-  depth: number;
-  move: Move;
-  score: number;
-}
-
-export interface IterativeOptions {
-  /** Called after each completed depth. */
-  onDepth?: (progress: SearchProgress) => void;
-  /** Stop the ladder here even if the difficulty would go deeper. Strictly for
-   *  callers that must not block for long — a shallow move beats a killed
-   *  context. Leave unset to keep full strength. */
-  maxDepth?: number;
-}
-
 /**
  * Same search as `getAiMove`, reached by walking increasing depths and calling
  * `onDepth` after each one completes. The final depth — and so the strength — is
@@ -668,21 +650,13 @@ export interface IterativeOptions {
 export function getAiMoveIterative(
   state: GameState,
   random: RandomFn = Math.random,
-  options: IterativeOptions = {},
+  options: IterativeOptions<Move> = {},
 ): Move {
   const { moves, shortcut } = openingChoice(state, random);
   if (shortcut) return shortcut;
-
-  const { onDepth, maxDepth } = options;
-  const target =
-    maxDepth === undefined
-      ? searchDepth(state)
-      : Math.min(searchDepth(state), maxDepth);
-
-  let best = { move: moves[0], score: -Infinity };
-  for (const depth of depthLadder(target)) {
-    best = bestMoveAtDepth(state, moves, depth, random);
-    onDepth?.({ depth, move: best.move, score: best.score });
-  }
-  return best.move;
+  return iterativeBest(
+    searchDepth(state),
+    (depth) => bestMoveAtDepth(state, moves, depth, random),
+    options,
+  );
 }

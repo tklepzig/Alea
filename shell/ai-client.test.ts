@@ -18,7 +18,7 @@ import {
 // choice; here the real observable ("how long it blocks the main thread") can't
 // be measured, and an uncapped fallback is precisely the regression that
 // reinstates the original freeze, so the call contract is what gets pinned.
-const mockOptionsSeen: IterativeOptions[] = [];
+const mockOptionsSeen: IterativeOptions<Move>[] = [];
 jest.mock("../games/dame/game.js", () => {
   const actual = jest.requireActual<typeof import("../games/dame/game.js")>(
     "../games/dame/game.js",
@@ -28,7 +28,7 @@ jest.mock("../games/dame/game.js", () => {
     getAiMoveIterative: (
       state: GameState,
       random: () => number,
-      options: IterativeOptions = {},
+      options: IterativeOptions<Move> = {},
     ) => {
       mockOptionsSeen.push(options);
       return actual.getAiMoveIterative(state, random, options);
