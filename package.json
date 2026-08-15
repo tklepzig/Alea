@@ -5,7 +5,7 @@
   "description": "Offline game collection (German UI): seven board and puzzle games in one PWA. Built on the Ada framework.",
   "scripts": {
     "start": "npx --yes live-server .",
-    "build": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit && sass --load-path=node_modules --quiet-deps style.scss:style.min.css -s compressed --no-source-map && offline-kit build",
+    "build": "tsc --noEmit && tsc -p tsconfig.sw.json --noEmit && tsc -p tsconfig.worker.json --noEmit && sass --load-path=node_modules --quiet-deps style.scss:style.min.css -s compressed --no-source-map && offline-kit build",
     "verify:offline": "offline-kit verify",
     "smoke:offline": "node scripts/offline-smoke.mjs",
     "test": "tsc -p tsconfig.test.json --noEmit && npx --yes jest",
@@ -16,7 +16,7 @@
     "pwa:watch": "offline-kit build --watch"
   },
   "dependencies": {
-    "@tklepzig/offline-kit": "^0.2.0"
+    "@tklepzig/offline-kit": "0.3.0-worker-entries-86793884e256010ecc4bc9a859479f0c9d5c7162"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",

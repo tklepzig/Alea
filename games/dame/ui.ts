@@ -8,11 +8,11 @@ import { APP_ID } from "../../shell/app.js";
 import { safeGet, safeRemove, safeSet } from "../../shell/safe-storage.js";
 import { isUndoAllowed, setUndoAllowed } from "../../shell/undo-lock.js";
 import type { GameController, GameHost } from "../../shell/game-controller.js";
+import { AiCancelledError, cancelAiMoves, requestAiMove } from "../../shell/ai-client.js";
 import {
   SIZE,
   createGame,
   applyMove,
-  getAiMove,
   legalMoves,
   otherPlayer,
   isPlayable,
@@ -92,6 +92,13 @@ let history: GameState[] = [];
 let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
+// Why the AI didn't move, when it didn't. Distinguishes "still thinking" from
+// "gave up", which the turn alone can't: without it a dead search is
+// indistinguishable from a live one and the game is stuck for good.
+let aiFailed: string | null = null;
+// Bumped whenever a pending AI answer stops being wanted, so a late reply can
+// be recognised as stale and dropped. See `maybeScheduleAi`.
+let aiGeneration = 0;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -157,6 +164,12 @@ function clearTimers(): void {
   endTimer = undefined;
   flashTimer = undefined;
   aiThinking = false;
+  aiFailed = null;
+  // A request already handed to the worker outlives its timer, so drop it too —
+  // otherwise a move for the abandoned position could still arrive. Bumping the
+  // generation covers the answer that is already in flight past cancellation.
+  aiGeneration++;
+  cancelAiMoves();
 }
 
 // ---------------------------------------------------------------------------
@@ -253,10 +266,12 @@ function turnText(state: GameState): string {
   if (state.mode === "local") {
     return state.currentPlayer === "red" ? "Rot ist dran" : "Schwarz ist dran";
   }
+  if (aiFailed) return "KI-Fehler";
   return state.currentPlayer === state.humanPlayer ? "Du bist dran" : "KI denkt …";
 }
 
 function annotText(state: GameState): string {
+  if (aiFailed) return `${aiFailed} Tippe auf „Nochmal“.`;
   if (aiThinking) return "";
   if (state.mustContinueFrom) return "Weiter schlagen — der Sprung geht noch!";
   const mustCapture = legalMoves(state).some((move) => move.captured !== null);
@@ -278,6 +293,7 @@ function paintStatus(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   byId("board-actions").hidden = !undoAllowed;
+  byId("ai-failed").hidden = aiFailed === null;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -380,10 +396,17 @@ function undo(): void {
   renderGame();
 }
 
-/** If it's the AI's turn (including a multi-jump continuation), think and play. */
+/** If it's the AI's turn (including a multi-jump continuation), think and play.
+ *
+ *  The search runs in a worker, so this returns immediately and the board stays
+ *  responsive while the AI thinks. `aiFailed` is the missing piece the old
+ *  version had no way to express: "KI denkt …" was derived purely from whose
+ *  turn it is, so a search that never delivered left the screen saying the AI
+ *  was thinking, forever, with nothing running. */
 function maybeScheduleAi(): void {
   if (!game || game.status !== "playing" || !isAiTurn(game)) return;
   aiThinking = true;
+  aiFailed = null;
   selected = null;
   // Only repaint the status text — the board is already rendered (and locked)
   // from the move that led here; a full rebuild would cut off its slide.
@@ -393,10 +416,45 @@ function maybeScheduleAi(): void {
     ? slideDuration + CONTINUE_GAP_MS
     : Math.max(AI_DELAY_MS, slideDuration - SLIDE_LEAD_MS);
   aiTimer = setTimeout(() => {
-    aiThinking = false;
-    if (!game || game.status !== "playing" || !isAiTurn(game)) return;
-    step(getAiMove(game));
+    if (!game || game.status !== "playing" || !isAiTurn(game)) {
+      // Shouldn't happen — every route that changes the turn cancels this timer
+      // first. Repaint anyway: bailing out silently would leave whatever
+      // paintStatus() last wrote on screen, and that is "KI denkt …".
+      aiThinking = false;
+      if (game) renderGame();
+      return;
+    }
+    // Stamp the request. By the time the answer lands the player may have
+    // undone, restarted, or left the game, and a move for the old position
+    // would be illegal in the new one. A generation counter rather than an
+    // identity check on `game`, because leaving and resuming keeps the very
+    // same state object — `clearTimers` bumps it, so every one of those paths
+    // invalidates the answer.
+    const asked = ++aiGeneration;
+    const current = game;
+    requestAiMove("dame", current)
+      .then((move) => {
+        if (aiGeneration !== asked) return;
+        aiThinking = false;
+        step(move);
+      })
+      .catch((error: unknown) => {
+        if (aiGeneration !== asked || error instanceof AiCancelledError) return;
+        aiThinking = false;
+        aiFailed =
+          error instanceof Error ? error.message : "Die KI konnte nicht ziehen.";
+        renderGame();
+      });
   }, gap);
+}
+
+/** Ask the AI again after a failure — the position is unchanged, so this is
+ *  just a retry of the same request. */
+function retryAi(): void {
+  if (!game || game.status !== "playing" || !isAiTurn(game)) return;
+  aiFailed = null;
+  renderGame();
+  maybeScheduleAi();
 }
 
 // ---------------------------------------------------------------------------
@@ -591,6 +649,7 @@ export function initDame(host: GameHost): GameController {
 
   byId("game-back").addEventListener("click", goHome);
   byId("btn-undo").addEventListener("click", undo);
+  byId("btn-ai-retry").addEventListener("click", retryAi);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(

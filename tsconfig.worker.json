@@ -1,0 +1,4 @@
+{
+  "extends": "@tklepzig/offline-kit/tsconfig-sw.json",
+  "files": ["ai-worker.ts"]
+}
