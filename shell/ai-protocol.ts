@@ -25,4 +25,8 @@ export type AiResponse =
    *  if the worker dies before "done", this is still a legal, sensible move. */
   | { id: number; kind: "progress"; depth: number; move: Move }
   | { id: number; kind: "done"; move: Move }
-  | { id: number; kind: "error"; message: string };
+  /** `fromEngine` marks a throw out of the game logic — an assertion like
+   *  "no legal move — check status first". Those messages are diagnostics, not
+   *  copy, and must never be rendered to a player; only the client's own
+   *  messages are written for one. */
+  | { id: number; kind: "error"; message: string; fromEngine: boolean };

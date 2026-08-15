@@ -45,6 +45,9 @@ ctx.onmessage = (event: MessageEvent<AiRequest>): void => {
       id,
       kind: "error",
       message: error instanceof Error ? error.message : String(error),
+      // Everything reachable here comes out of the engine, so the message is a
+      // diagnostic. The client must not pass it off as text for a player.
+      fromEngine: true,
     });
   }
 };

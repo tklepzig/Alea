@@ -4,7 +4,37 @@
 // would give none of that control, hence the fake.
 
 import type { AiRequest, AiResponse } from "./ai-protocol.js";
-import { createGame, type GameState, type Move } from "../games/dame/game.js";
+import {
+  createGame,
+  isLegalMove,
+  type GameState,
+  type IterativeOptions,
+  type Move,
+} from "../games/dame/game.js";
+
+// The fallback's depth cap has no observable effect on the returned move — any
+// depth yields a legal one — so the only assertable invariant is the options the
+// client passes down. Asserting on a mock's arguments is usually the weak
+// choice; here the real observable ("how long it blocks the main thread") can't
+// be measured, and an uncapped fallback is precisely the regression that
+// reinstates the original freeze, so the call contract is what gets pinned.
+const mockOptionsSeen: IterativeOptions[] = [];
+jest.mock("../games/dame/game.js", () => {
+  const actual = jest.requireActual<typeof import("../games/dame/game.js")>(
+    "../games/dame/game.js",
+  );
+  return {
+    ...actual,
+    getAiMoveIterative: (
+      state: GameState,
+      random: () => number,
+      options: IterativeOptions = {},
+    ) => {
+      mockOptionsSeen.push(options);
+      return actual.getAiMoveIterative(state, random, options);
+    },
+  };
+});
 
 /** Stand-in for the browser's Worker: records what it was sent and lets a test
  *  decide, per request, what (if anything) comes back. */
@@ -69,6 +99,7 @@ async function freshClient(): Promise<typeof import("./ai-client.js")> {
 
 beforeEach(() => {
   FakeWorker.reset();
+  mockOptionsSeen.length = 0;
   (globalThis as { Worker?: unknown }).Worker = FakeWorker;
   jest.useFakeTimers();
 });
@@ -140,7 +171,7 @@ describe("requestAiMove", () => {
   it("reports an explicit worker error when nothing was completed", async () => {
     const { requestAiMove, AiUnavailableError } = await freshClient();
     FakeWorker.onRequest = (worker, request) => {
-      worker.reply({ id: request.id, kind: "error", message: "kaputt" });
+      worker.reply({ id: request.id, kind: "error", message: "kaputt", fromEngine: false });
     };
     await expect(requestAiMove("dame", aiState())).rejects.toBeInstanceOf(
       AiUnavailableError,
@@ -151,7 +182,7 @@ describe("requestAiMove", () => {
     const { requestAiMove } = await freshClient();
     FakeWorker.onRequest = (worker, request) => {
       worker.reply({ id: request.id, kind: "progress", depth: 2, move: move(4, 1) });
-      worker.reply({ id: request.id, kind: "error", message: "kaputt" });
+      worker.reply({ id: request.id, kind: "error", message: "kaputt", fromEngine: false });
     };
     await expect(requestAiMove("dame", aiState())).resolves.toEqual(move(4, 1));
   });
@@ -159,11 +190,33 @@ describe("requestAiMove", () => {
   it("searches on this thread when no worker can be built", async () => {
     FakeWorker.failConstruction = true;
     const { requestAiMove } = await freshClient();
-    // Capped at a shallow depth — an unbounded search here would block the UI,
-    // which is the bug this whole design removes.
-    const chosen = await requestAiMove("dame", aiState());
-    expect(chosen.from).toBeDefined();
+    const state = aiState();
+    const chosen = await requestAiMove("dame", state);
+    expect(isLegalMove(state, chosen)).toBe(true);
     expect(FakeWorker.instances).toHaveLength(0);
+  });
+
+  // Without the cap this path runs the full expert ladder synchronously — ~30s
+  // of frozen board on the tablet, then a killed context. Deleting `maxDepth`
+  // from requestAiMove must fail a test, and nothing about the returned move
+  // reveals the depth, so the options object is the thing to assert on.
+  it("caps the on-thread fallback so it cannot block like the original bug", async () => {
+    FakeWorker.failConstruction = true;
+    const { requestAiMove } = await freshClient();
+    await requestAiMove("dame", aiState());
+    expect(mockOptionsSeen).toHaveLength(1);
+    expect(mockOptionsSeen[0].maxDepth).toBe(4);
+  });
+
+  it("does not cap the worker's own search — full strength stays in the worker", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "done", move: move(4, 3) });
+    };
+    await requestAiMove("dame", aiState());
+    // Nothing ran on this thread, and the request carries no depth limit.
+    expect(mockOptionsSeen).toHaveLength(0);
+    expect("maxDepth" in FakeWorker.instances[0].sent[0]).toBe(false);
   });
 
   it("sends a plain-data request that survives structured cloning", async () => {
@@ -176,6 +229,98 @@ describe("requestAiMove", () => {
     // A function anywhere in here would throw DataCloneError in a real browser.
     expect(() => structuredClone(sent)).not.toThrow();
     expect(typeof sent.seed).toBe("number");
+  });
+});
+
+// A worker that dies without ever speaking means the bundle never loaded — `new
+// Worker` resolves happily for a 404, so onerror is the only signal. One such
+// failure is ambiguous (it could be the low-memory kill this design exists for,
+// and falling back to the main thread for that would reinstate the freeze), so
+// it takes two in a row to write workers off.
+describe("worker load failures", () => {
+  const failOnError = (worker: FakeWorker) => {
+    worker.onerror?.();
+  };
+
+  it("rebuilds the worker after a single silent failure", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = failOnError;
+    await expect(requestAiMove("dame", aiState())).rejects.toBeDefined();
+
+    // Not written off yet: a second worker is built rather than searching here.
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "done", move: move(4, 3) });
+    };
+    await expect(requestAiMove("dame", aiState())).resolves.toEqual(move(4, 3));
+    expect(FakeWorker.instances).toHaveLength(2);
+    expect(mockOptionsSeen).toHaveLength(0); // nothing ran on this thread
+  });
+
+  it("writes workers off after two silent failures and answers on this thread", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = failOnError;
+
+    await expect(requestAiMove("dame", aiState())).rejects.toBeDefined();
+    // The second failure flips workerBroken, and that request is answered by
+    // the capped on-thread search rather than being reported as a failure —
+    // otherwise the player taps Nochmal only to meet the same wall.
+    const state = aiState();
+    const chosen = await requestAiMove("dame", state);
+    expect(isLegalMove(state, chosen)).toBe(true);
+    expect(mockOptionsSeen[mockOptionsSeen.length - 1].maxDepth).toBe(4);
+
+    // And no further workers are built.
+    const built = FakeWorker.instances.length;
+    await requestAiMove("dame", aiState());
+    expect(FakeWorker.instances).toHaveLength(built);
+  });
+
+  it("does not write workers off when the worker had answered first", async () => {
+    const { requestAiMove } = await freshClient();
+    // Progress then death, twice — this is the silent-kill shape, not a broken
+    // bundle, so it must never push the search back onto the main thread.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      FakeWorker.onRequest = (worker, request) => {
+        worker.reply({ id: request.id, kind: "progress", depth: 2, move: move(4, 1) });
+        worker.onerror?.();
+      };
+      await expect(requestAiMove("dame", aiState())).resolves.toEqual(move(4, 1));
+    }
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "done", move: move(4, 3) });
+    };
+    await expect(requestAiMove("dame", aiState())).resolves.toEqual(move(4, 3));
+    expect(mockOptionsSeen).toHaveLength(0);
+  });
+});
+
+describe("error reporting", () => {
+  // Engine assertions are diagnostics. AiUnavailableError is the client's own
+  // German copy, and the UI renders only that — so an engine message must not
+  // arrive wearing it.
+  it("keeps an engine assertion out of AiUnavailableError", async () => {
+    const { requestAiMove, AiUnavailableError } = await freshClient();
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({
+        id: request.id,
+        kind: "error",
+        message: "no legal move — check status first",
+        fromEngine: true,
+      });
+    };
+    const failure = await requestAiMove("dame", aiState()).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(AiUnavailableError);
+  });
+
+  it("uses AiUnavailableError for the client's own failures", async () => {
+    const { requestAiMove, AiUnavailableError } = await freshClient();
+    FakeWorker.onRequest = () => {
+      /* silence */
+    };
+    const pending = requestAiMove("dame", aiState());
+    jest.advanceTimersByTime(60_000);
+    await expect(pending).rejects.toBeInstanceOf(AiUnavailableError);
   });
 });
 
@@ -212,6 +357,12 @@ describe("cancelAiMoves", () => {
     expect(FakeWorker.instances).toHaveLength(2);
   });
 
+  // A settled request must not leave its silence timer armed: when it later
+  // fires it calls discardWorker, which terminates the worker and fails
+  // whatever request is in flight by then. The clock has to be staggered to
+  // show this — advancing far enough for the abandoned request's timer to fire
+  // would otherwise also trip the new request's own timer, and the test would
+  // pass whether or not `settle` clears anything.
   it("does not fire a stale timer against a later request", async () => {
     const { requestAiMove, cancelAiMoves } = await freshClient();
     FakeWorker.onRequest = () => {
@@ -221,6 +372,10 @@ describe("cancelAiMoves", () => {
     abandoned.catch(() => {
       /* expected */
     });
+
+    // Burn most of the abandoned request's 25s window before cancelling, so its
+    // deadline lands well inside the *next* request's window.
+    jest.advanceTimersByTime(20_000);
     cancelAiMoves();
 
     let second: FakeWorker | undefined;
@@ -230,10 +385,12 @@ describe("cancelAiMoves", () => {
       secondId = request.id;
     };
     const pending = requestAiMove("dame", aiState());
-    // Past the cancelled request's original deadline: it must not take this one
-    // down with it.
-    jest.advanceTimersByTime(24_000);
+
+    // t = 30s: past the abandoned request's original 25s deadline, but only 10s
+    // into the new one. A leaked timer fires here and kills this request.
+    jest.advanceTimersByTime(10_000);
     second!.reply({ id: secondId, kind: "done", move: move(4, 5) });
+
     await expect(pending).resolves.toEqual(move(4, 5));
     expect(second!.terminated).toBe(false);
   });

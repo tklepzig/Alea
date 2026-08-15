@@ -53,9 +53,19 @@ interface Pending {
   reject(error: Error): void;
   /** Deepest move reported so far — the fallback if the worker goes quiet. */
   best: Move | null;
+  /** The position asked about, so a request can still be answered on this
+   *  thread once we know no worker is coming. */
+  state: GameState;
   timer: ReturnType<typeof setTimeout>;
   /** Restarts the silence clock; called each time a depth lands. */
   touch(): void;
+}
+
+/** The capped on-thread search. Blocks, so it is only ever a last resort. */
+function searchHere(state: GameState): Move {
+  return getAiMoveIterative(state, seededRandom(randomSeed()), {
+    maxDepth: FALLBACK_MAX_DEPTH,
+  });
 }
 
 let worker: Worker | null = null;
@@ -83,12 +93,26 @@ function settle(id: number, apply: (entry: Pending) => void): void {
   apply(entry);
 }
 
-/** Give up on every in-flight request, using each one's fallback if it has one. */
+/** Give up on every in-flight request, answering each as well as we still can. */
 function failAll(reason: string): void {
   for (const id of [...pending.keys()]) {
     settle(id, (entry) => {
-      if (entry.best) entry.resolve(entry.best);
-      else entry.reject(new AiUnavailableError(reason));
+      if (entry.best) {
+        entry.resolve(entry.best);
+        return;
+      }
+      // Once the worker is written off for good, no retry will do better — so
+      // answer here rather than reporting a failure the player can only respond
+      // to by tapping Nochmal and meeting the same wall.
+      if (workerBroken) {
+        try {
+          entry.resolve(searchHere(entry.state));
+          return;
+        } catch {
+          // Engine threw on this position; fall through and report it.
+        }
+      }
+      entry.reject(new AiUnavailableError(reason));
     });
   }
 }
@@ -131,6 +155,10 @@ function ensureWorker(): Worker | null {
     settle(response.id, (entry) => {
       if (response.kind === "done") entry.resolve(response.move);
       else if (entry.best) entry.resolve(entry.best);
+      // An engine assertion is a diagnostic, so it stays a plain Error and the
+      // UI shows its own copy. Wrapping it as AiUnavailableError would make the
+      // UI treat "no legal move — check status first" as German player text.
+      else if (response.fromEngine) entry.reject(new Error(response.message));
       else entry.reject(new AiUnavailableError(response.message));
     });
   };
@@ -162,15 +190,11 @@ export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
   const active = ensureWorker();
   if (!active) {
     try {
-      return Promise.resolve(
-        getAiMoveIterative(state, seededRandom(randomSeed()), {
-          maxDepth: FALLBACK_MAX_DEPTH,
-        }),
-      );
+      return Promise.resolve(searchHere(state));
     } catch (error) {
-      return Promise.reject(
-        new AiUnavailableError(error instanceof Error ? error.message : String(error)),
-      );
+      // An engine throw is a diagnostic, not player copy — keep it a plain
+      // Error so the UI shows its own message instead of an assertion string.
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -185,6 +209,7 @@ export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
       resolve,
       reject,
       best: null,
+      state,
       timer: setTimeout(onSilence, AI_IDLE_TIMEOUT_MS),
       touch: () => {
         clearTimeout(entry.timer);
