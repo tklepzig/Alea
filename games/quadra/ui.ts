@@ -13,7 +13,6 @@ import {
   ROWS,
   createGame,
   applyMove,
-  getAiMove,
   isColumnPlayable,
   lowestEmptyRow,
   otherPlayer,
@@ -23,6 +22,12 @@ import {
   type Move,
   type Player,
 } from "./game.js";
+import {
+  AiCancelledError,
+  AiUnavailableError,
+  cancelAiMoves,
+  requestAiMove,
+} from "../../shell/ai-client.js";
 import {
   DEFAULT_SETTINGS,
   serializeGame,
@@ -79,6 +84,12 @@ let history: GameState[] = [];
 let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
+// Why the AI didn't move, when it didn't. Without it a dead search is
+// indistinguishable from a live one and the game is stuck for good.
+let aiFailed: string | null = null;
+// Bumped whenever a pending AI answer stops being wanted, so a late reply can
+// be recognised as stale and dropped.
+let aiGeneration = 0;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -95,6 +106,10 @@ function clearTimers(): void {
   aiTimer = undefined;
   endTimer = undefined;
   aiThinking = false;
+  aiFailed = null;
+  // A request already handed to the worker outlives its timer, so drop it too.
+  aiGeneration++;
+  cancelAiMoves();
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +194,7 @@ function renderBoard(
 // Game screen
 // ---------------------------------------------------------------------------
 function turnText(state: GameState): string {
+  if (aiFailed) return "KI-Fehler";
   if (state.mode === "local") {
     return state.currentPlayer === "red" ? "Rot ist dran" : "Gelb ist dran";
   }
@@ -198,6 +214,7 @@ function renderGame(): void {
     : "Tippe eine Spalte, um einen Stein zu setzen.";
 
   byId("board-actions").hidden = !undoAllowed;
+  byId("ai-failed").hidden = aiFailed === null;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 
@@ -268,13 +285,47 @@ function maybeScheduleAi(): void {
   aiThinking = true;
   renderGame(); // lock the board and show "KI denkt …"
   aiTimer = setTimeout(() => {
-    aiThinking = false;
     // Re-check the turn too (like the sibling games): undo can flip it back to
     // the human between scheduling and firing.
-    if (!game || game.status !== "playing" || game.currentPlayer !== aiPlayer(game)) return;
-    const column = getAiMove(game.board, game.currentPlayer, game.difficulty);
-    step(column);
+    if (!game || game.status !== "playing" || game.currentPlayer !== aiPlayer(game)) {
+      aiThinking = false;
+      if (game) renderGame();
+      return;
+    }
+    const asked = ++aiGeneration;
+    // Quadra's engine predates the GameState convention and takes its inputs
+    // loose, so the payload spells them out.
+    const payload = {
+      board: game.board,
+      player: game.currentPlayer,
+      difficulty: game.difficulty,
+    };
+    requestAiMove("quadra", payload)
+      .then((column) => {
+        if (aiGeneration !== asked) return;
+        aiThinking = false;
+        step(column);
+      })
+      .catch((error: unknown) => {
+        if (aiGeneration !== asked || error instanceof AiCancelledError) return;
+        aiThinking = false;
+        if (!(error instanceof AiUnavailableError)) console.error("Quadra AI:", error);
+        aiFailed =
+          error instanceof AiUnavailableError
+            ? error.message
+            : "Die KI konnte nicht ziehen.";
+        renderGame();
+      });
   }, AI_DELAY_MS);
+}
+
+/** Ask the AI again after a failure — the position is unchanged. */
+function retryAi(): void {
+  if (!game || game.mode !== "ai" || game.status !== "playing") return;
+  if (game.currentPlayer !== aiPlayer(game)) return;
+  aiFailed = null;
+  renderGame();
+  maybeScheduleAi();
 }
 
 // ---------------------------------------------------------------------------
@@ -445,6 +496,7 @@ export function initQuadra(host: GameHost): GameController {
 
   byId("game-back").addEventListener("click", goHome);
   byId("btn-undo").addEventListener("click", undo);
+  byId("btn-ai-retry").addEventListener("click", retryAi);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

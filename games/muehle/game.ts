@@ -12,6 +12,13 @@
 // enemy stone — one not itself in a mill, unless all of them are. A side that is
 // reduced to 2 stones, or that cannot move, loses.
 
+import {
+  iterativeBest,
+  pickBest,
+  type IterativeOptions,
+  type Scored,
+} from "../../shell/iterative-search.js";
+
 export type Player = "red" | "blue";
 export type Point = Player | null;
 /** 24 points, index = ring*8 + position. */
@@ -335,17 +342,58 @@ function scoreFirstStep(state: GameState, firstStep: Move, depth: number): numbe
  * it sometimes plays a random legal step instead of searching.
  */
 export function getAiMove(state: GameState, random: RandomFn = Math.random): Move {
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return bestMoveAtDepth(state, moves, LEVELS[state.difficulty].depth, random).move;
+}
+
+/** Best of `moves` searched to exactly `depth`; `random` breaks ties, consumed
+ *  exactly once, as the fixed-depth root always did. */
+function bestMoveAtDepth(
+  state: GameState,
+  moves: Move[],
+  depth: number,
+  random: RandomFn,
+): Scored<Move> {
+  return pickBest(
+    moves.map((move) => ({ move, score: scoreFirstStep(state, move, depth) })),
+    random,
+  );
+}
+
+/** The moves the search opens with, and whether a blunder short-circuits it.
+ *  Shared by both entry points so they consume `random` identically. */
+function openingChoice(
+  state: GameState,
+  random: RandomFn,
+): { moves: Move[]; shortcut: Move | null } {
   const moves = legalMoves(state);
   if (moves.length === 0) throw new Error("no legal move — check status first");
-  if (moves.length === 1) return moves[0];
+  if (moves.length === 1) return { moves, shortcut: moves[0] };
 
-  const { depth, blunderRate } = LEVELS[state.difficulty];
+  const { blunderRate } = LEVELS[state.difficulty];
   if (blunderRate > 0 && random() < blunderRate) {
-    return moves[Math.floor(random() * moves.length)];
+    return { moves, shortcut: moves[Math.floor(random() * moves.length)] };
   }
+  return { moves, shortcut: null };
+}
 
-  const scored = moves.map((move) => ({ move, score: scoreFirstStep(state, move, depth) }));
-  const bestScore = Math.max(...scored.map((entry) => entry.score));
-  const best = scored.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)].move;
+/**
+ * Same search as `getAiMove`, walking increasing depths and reporting each one.
+ * The final depth — and so the strength — is identical; the intermediate results
+ * exist so a caller still holds a playable move if the search is killed before
+ * it finishes. See shell/iterative-search.ts for why that can happen silently.
+ */
+export function getAiMoveIterative(
+  state: GameState,
+  random: RandomFn = Math.random,
+  options: IterativeOptions<Move> = {},
+): Move {
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return iterativeBest(
+    LEVELS[state.difficulty].depth,
+    (depth) => bestMoveAtDepth(state, moves, depth, random),
+    options,
+  );
 }

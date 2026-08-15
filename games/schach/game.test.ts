@@ -7,6 +7,7 @@ import {
   evaluate,
   findKing,
   getAiMove,
+  getAiMoveIterative,
   isInCheck,
   isInsufficientMaterial,
   isLegalMove,
@@ -584,5 +585,92 @@ describe("helpers", () => {
     expect(findKing(createBoard(), "black")).toEqual(at("e8"));
     expect(squareName({ row: 7, col: 0 })).toBe("a1");
     expect(squareName({ row: 0, col: 7 })).toBe("h8");
+  });
+});
+
+// Iterative deepening lets a killed search leave a playable move behind. It must
+// not cost strength: the ladder ends on the same depth, so the move must match.
+//
+// Schach's root is the awkward one — it threads alpha and re-searches ties that
+// only came back as upper bounds, so the tied-best set is computed differently
+// from the other engines. That makes this differential the one most worth having.
+//
+// A constant-0 RNG would prove nothing: it satisfies `random() < blunderRate` on
+// easy (0.35) and medium (0.08), short-circuiting BOTH functions to a random
+// move. Clear the blunder roll once, then 0 for every tie-break.
+describe("getAiMoveIterative — differential against getAiMove", () => {
+  const searchingRng = (difficulty: GameState["difficulty"]): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
+
+  const positions: [string, () => GameState][] = [
+    ["opening", () => createGame({ mode: "ai", humanPlayer: "white" })],
+    [
+      "free queen on offer",
+      () =>
+        position("white", ["e1:white:king", "e8:black:king", "d1:white:rook", "d7:black:queen"]),
+    ],
+    [
+      "middlegame with several captures",
+      () =>
+        position("white", [
+          "e1:white:king",
+          "e8:black:king",
+          "d4:white:queen",
+          "f3:white:knight",
+          "c6:black:knight",
+          "g6:black:bishop",
+          "a2:white:pawn",
+          "h7:black:pawn",
+        ]),
+    ],
+  ];
+
+  for (const [label, build] of positions) {
+    for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
+      test(`picks the same move as getAiMove — ${label}, ${difficulty}`, () => {
+        const state = { ...build(), difficulty };
+        // Guard the guard: assert the ladder actually ran, so a future change
+        // that short-circuits the search can't make this pass vacuously.
+        const depths: number[] = [];
+        const iterative = getAiMoveIterative(state, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toEqual(getAiMove(state, searchingRng(difficulty)));
+      });
+    }
+  }
+
+  // Pins every level's depth, not just expert. The differentials compare the two
+  // entry points against each other, so they move together and can never notice
+  // a depth change — reverting hard from 4 to 3 left all 72 schach tests green.
+  // Expert's 5 is odd, so the target must be appended rather than strided onto;
+  // its penultimate rung is 4, the depth this level had before the worker let it
+  // go deeper, so a killed search falls back to exactly the old strength.
+  test.each([
+    ["easy", [1]],
+    ["medium", [2]],
+    ["hard", [2, 4]],
+    ["expert", [2, 4, 5]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "white" }), difficulty };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng(difficulty), {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual(expected);
+  });
+
+  test("reports a legal move at every depth, so a killed search leaves a fallback", () => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "white" }), difficulty: "expert" as const };
+    const reported: Move[] = [];
+    getAiMoveIterative(state, searchingRng("expert"), {
+      onDepth: (progress) => reported.push(progress.move),
+    });
+    expect(reported.length).toBeGreaterThan(0);
+    for (const candidate of reported) expect(isLegalMove(state, candidate)).toBe(true);
   });
 });

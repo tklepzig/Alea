@@ -11,7 +11,6 @@ import {
   SIZE,
   createGame,
   applyMove,
-  getAiTurn,
   legalMoves,
   targetCamp,
   otherPlayer,
@@ -21,6 +20,12 @@ import {
   type Player,
   type Square,
 } from "./game.js";
+import {
+  AiCancelledError,
+  AiUnavailableError,
+  cancelAiMoves,
+  requestAiMove,
+} from "../../shell/ai-client.js";
 import {
   DEFAULT_SETTINGS,
   serializeGame,
@@ -80,6 +85,12 @@ let history: GameState[] = [];
 // relaunching the app — can't hand the button back.
 let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 let aiThinking = false;
+// Why the AI didn't move, when it didn't. Without it a dead search is
+// indistinguishable from a live one and the game is stuck for good.
+let aiFailed: string | null = null;
+// Bumped whenever a pending AI answer stops being wanted, so a late reply can
+// be recognised as stale and dropped.
+let aiGeneration = 0;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -128,6 +139,10 @@ function clearTimers(): void {
   aiTimer = undefined;
   endTimer = undefined;
   aiThinking = false;
+  aiFailed = null;
+  // A request already handed to the worker outlives its timer, so drop it too.
+  aiGeneration++;
+  cancelAiMoves();
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +231,7 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
 // Game screen text
 // ---------------------------------------------------------------------------
 function turnText(state: GameState): string {
+  if (aiFailed) return "KI-Fehler";
   if (state.mode === "ai") {
     return state.currentPlayer === state.humanPlayer ? "Du bist dran" : "KI denkt …";
   }
@@ -223,6 +239,7 @@ function turnText(state: GameState): string {
 }
 
 function annotText(state: GameState): string {
+  if (aiFailed) return `${aiFailed} Tippe auf „Nochmal“.`;
   if (aiThinking) return "";
   if (state.jumpingFrom) return "Weiter springen — oder tippe deinen Stein, um den Zug zu beenden.";
   return "Wähle einen Stein: ein Schritt oder ein Sprung ins Ziel.";
@@ -237,6 +254,7 @@ function paintStatus(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   byId("board-actions").hidden = !undoAllowed;
+  byId("ai-failed").hidden = aiFailed === null;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -357,14 +375,48 @@ function maybeScheduleAi(): void {
   aiTimer = setTimeout(() => {
     if (!game || game.status !== "playing" || !isAiTurn(game)) {
       aiThinking = false;
+      if (game) renderGame();
       return;
     }
-    playPath(getAiTurn(game), 0);
+    const asked = ++aiGeneration;
+    const current = game;
+    // Halma's engine answers with a whole turn — a path of hops the UI replays.
+    requestAiMove("halma", current)
+      .then((path) => {
+        if (aiGeneration !== asked) return;
+        playPath(path, 0);
+      })
+      .catch((error: unknown) => {
+        if (aiGeneration !== asked || error instanceof AiCancelledError) return;
+        aiThinking = false;
+        if (!(error instanceof AiUnavailableError)) console.error("Halma AI:", error);
+        aiFailed =
+          error instanceof AiUnavailableError
+            ? error.message
+            : "Die KI konnte nicht ziehen.";
+        renderGame();
+      });
   }, AI_DELAY_MS);
 }
 
+/** Ask the AI again after a failure — the position is unchanged. */
+function retryAi(): void {
+  if (!game || game.status !== "playing" || !isAiTurn(game)) return;
+  aiFailed = null;
+  renderGame();
+  maybeScheduleAi();
+}
+
 function playPath(path: Move[], index: number): void {
-  if (!game || index >= path.length) return;
+  // Every other exit clears aiThinking; this one has to as well. An empty path
+  // (or a game that vanished under us) would otherwise leave the board locked
+  // with the AI apparently still thinking and nothing scheduled — the precise
+  // stuck state this whole change exists to remove.
+  if (!game || index >= path.length) {
+    aiThinking = false;
+    if (game) renderGame();
+    return;
+  }
   game = applyMove(game, path[index]);
   noteMove(path[index]);
 
@@ -541,6 +593,7 @@ export function initHalma(host: GameHost): GameController {
 
   byId("game-back").addEventListener("click", goHome);
   byId("btn-undo").addEventListener("click", undo);
+  byId("btn-ai-retry").addEventListener("click", retryAi);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

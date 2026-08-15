@@ -2,6 +2,13 @@
 // row 0 at the bottom (discs fall down under gravity). Everything here is
 // deterministic given an injected RNG, so it's fully unit-testable.
 
+import {
+  iterativeBest,
+  pickBest,
+  type IterativeOptions,
+  type Scored,
+} from "../../shell/iterative-search.js";
+
 export type Player = "red" | "yellow";
 export type Cell = Player | null;
 /** board[column][row]; row 0 is the bottom slot. 7 columns × 6 rows. */
@@ -363,11 +370,29 @@ export function getAiMove(
     return moves[Math.floor(random() * moves.length)];
   }
 
+  return bestColumnAtDepth(board, player, difficulty, moves, depth, random).move;
+}
+
+// Easy accepts any move within a small band of the best. A losing move (allowing
+// the opponent's win) scores around -WIN_SCORE, so it never enters the band —
+// blocking and winning are preserved.
+const EASY_TOLERANCE = 30;
+
+/** Best of `moves` searched to exactly `depth`; `random` breaks the choice,
+ *  consumed exactly once, as the fixed-depth root always did. */
+function bestColumnAtDepth(
+  board: Board,
+  player: Player,
+  difficulty: Difficulty,
+  moves: number[],
+  depth: number,
+  random: RandomFn,
+): Scored<number> {
   const scored = moves.map((column) => {
     const dropped = dropDisc(board, column, player)!;
     // Take an outright win immediately, without searching deeper.
     if (checkWin(dropped.board, { column, row: dropped.row })) {
-      return { column, score: WIN_SCORE * 2 };
+      return { move: column, score: WIN_SCORE * 2 };
     }
     const score = -negamax(
       dropped.board,
@@ -376,20 +401,43 @@ export function getAiMove(
       -Infinity,
       Infinity,
     );
-    return { column, score };
+    return { move: column, score };
   });
 
-  const bestScore = Math.max(...scored.map((entry) => entry.score));
+  if (difficulty !== "easy") return pickBest(scored, random);
 
-  if (difficulty === "easy") {
-    // Accept any move within a small band of the best. A losing move (allowing
-    // the opponent's win) scores around -WIN_SCORE, so it never enters the band
-    // — blocking and winning are preserved.
-    const TOLERANCE = 30;
-    const acceptable = scored.filter((entry) => entry.score >= bestScore - TOLERANCE);
-    return acceptable[Math.floor(random() * acceptable.length)].column;
+  const bestScore = Math.max(...scored.map((entry) => entry.score));
+  const acceptable = scored.filter((entry) => entry.score >= bestScore - EASY_TOLERANCE);
+  return acceptable[Math.floor(random() * acceptable.length)];
+}
+
+/**
+ * Same search as `getAiMove`, walking increasing depths and reporting each one.
+ * The final depth — and so the strength — is identical; the intermediate results
+ * exist so a caller still holds a playable column if the search is killed before
+ * it finishes. See shell/iterative-search.ts for why that can happen silently.
+ */
+export function getAiMoveIterative(
+  board: Board,
+  player: Player,
+  difficulty: Difficulty,
+  random: RandomFn = Math.random,
+  options: IterativeOptions<number> = {},
+): number {
+  const moves = COLUMN_ORDER.filter((column) => isColumnPlayable(board, column));
+  if (moves.length === 0) {
+    throw new Error("no playable column — check isBoardFull before calling");
+  }
+  if (moves.length === 1) return moves[0];
+
+  const { depth, blunderRate } = LEVELS[difficulty];
+  if (blunderRate > 0 && random() < blunderRate) {
+    return moves[Math.floor(random() * moves.length)];
   }
 
-  const best = scored.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)].column;
+  return iterativeBest(
+    depth,
+    (rung) => bestColumnAtDepth(board, player, difficulty, moves, rung, random),
+    options,
+  );
 }

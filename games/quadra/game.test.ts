@@ -6,6 +6,7 @@ import {
   applyMove,
   createGame,
   getAiMove,
+  getAiMoveIterative,
   validColumns,
   otherPlayer,
   COLUMNS,
@@ -214,5 +215,69 @@ describe("otherPlayer", () => {
   it("swaps the colour", () => {
     expect(otherPlayer(R)).toBe(Y);
     expect(otherPlayer(Y)).toBe(R);
+  });
+});
+
+// Iterative deepening lets a killed search leave a playable column behind. It
+// must not cost strength: the ladder ends on the same depth, so the column must
+// match. A constant-0 RNG would prove nothing — it satisfies
+// `random() < blunderRate` on easy (0.3) and medium (0.08), short-circuiting
+// BOTH functions to a random column. Clear the blunder roll once, then 0 for
+// every later pick, so both take the first acceptable column.
+describe("getAiMoveIterative — differential against getAiMove", () => {
+  const searchingRng = (difficulty: "easy" | "medium" | "hard" | "expert"): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
+
+  const positions: [string, () => Board][] = [
+    ["empty board", () => createBoard()],
+    ["red one from a win", () => play([0, 0, 1, 1, 2, 2], [R, Y, R, Y, R, Y])],
+    ["yellow threatening, red must block", () => play([0, 1, 2, 6], [Y, Y, Y, R])],
+    ["cluttered midgame", () => play([3, 3, 4, 2, 4, 5, 1, 6, 0], [R, Y, R, Y, R, Y, R, Y, R])],
+  ];
+
+  for (const [label, build] of positions) {
+    for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
+      it(`picks the same column as getAiMove — ${label}, ${difficulty}`, () => {
+        const board = build();
+        // Guard the guard: assert the ladder actually ran, so a future change
+        // that short-circuits the search can't make this pass vacuously.
+        const depths: number[] = [];
+        const iterative = getAiMoveIterative(board, R, difficulty, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toBe(getAiMove(board, R, difficulty, searchingRng(difficulty)));
+      });
+    }
+  }
+
+  // Pins every level's depth, not just expert: the differentials compare the two
+  // entry points against each other, so they move together and can never notice
+  // a depth change. Expert's 7 is odd, so an even stride would step over it and
+  // the deepest result — the whole point — would never be computed.
+  it.each([
+    ["easy", [2]],
+    ["medium", [2, 4]],
+    ["hard", [2, 4, 6]],
+    ["expert", [2, 4, 6, 7]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const depths: number[] = [];
+    getAiMoveIterative(createBoard(), R, difficulty, searchingRng(difficulty), {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual(expected);
+  });
+
+  it("reports a playable column at every depth, so a killed search leaves a fallback", () => {
+    const board = play([3, 3, 4, 2], [R, Y, R, Y]);
+    const reported: number[] = [];
+    getAiMoveIterative(board, R, "expert", searchingRng("expert"), {
+      onDepth: (progress) => reported.push(progress.move),
+    });
+    expect(reported.length).toBeGreaterThan(0);
+    for (const column of reported) expect(validColumns(board)).toContain(column);
   });
 });

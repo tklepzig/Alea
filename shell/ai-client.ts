@@ -9,7 +9,7 @@
 // armed on a blocked main thread dies with the search and never fires (measured;
 // see ai-worker.ts). So: a timeout, and the last reported depth as the answer.
 
-import { getAiMoveIterative, type GameState, type Move } from "../games/dame/game.js";
+import { AI_ENGINES, type AiMoves, type AiPayloads } from "./ai-engines.js";
 import type { AiGameId, AiRequest, AiResponse } from "./ai-protocol.js";
 import { randomSeed, seededRandom } from "./seeded-random.js";
 
@@ -18,11 +18,21 @@ const WORKER_URL = "ai-worker.js";
 
 // How long the worker may stay *silent* before we call it dead. Re-armed on
 // every completed depth, so it measures a gap between results, not a total
-// budget — a search that keeps reporting can run as long as it likes and never
-// loses strength to the clock. Only a single depth-step longer than this is
-// truncated, and on the device where that happens (depth 6 → 8 on the 1GB
-// tablet) the step never completes anyway; it is killed around 30s.
+// budget — a search that keeps reporting can run as long as it likes.
+//
+// A constant is not enough, though: each rung costs several times the one
+// before, so the final gap is exactly where a perfectly healthy search looks
+// dead. With a flat 25s the deepest rung of Mühle expert (measured ~15s here,
+// so ~130s on a 9x-slower tablet) and Halma expert would time out every single
+// move, and the fallback is the *previous* rung — those levels would quietly
+// and permanently play at their "hard" depth on the one device this whole
+// design exists for, re-paying the discarded work each turn.
+//
+// So scale the allowance from the gap actually observed: whatever the last rung
+// took, allow generously more for the next. Still a liveness check, not a
+// budget — it never truncates a search that is reporting progress.
 const AI_IDLE_TIMEOUT_MS = 25_000;
+const IDLE_GAP_MULTIPLIER = 20;
 
 // Depth cap for the main-thread fallback only. That path blocks the UI, and an
 // unbounded ladder there would reproduce the original bug exactly: ~30s of
@@ -49,21 +59,25 @@ export class AiCancelledError extends Error {
 }
 
 interface Pending {
-  resolve(move: Move): void;
+  resolve(move: unknown): void;
   reject(error: Error): void;
   /** Deepest move reported so far — the fallback if the worker goes quiet. */
-  best: Move | null;
-  /** The position asked about, so a request can still be answered on this
-   *  thread once we know no worker is coming. */
-  state: GameState;
+  best: unknown;
+  /** Which engine, and the position asked about, so a request can still be
+   *  answered on this thread once we know no worker is coming. */
+  game: AiGameId;
+  payload: unknown;
   timer: ReturnType<typeof setTimeout>;
+  /** When the last sign of life arrived, so the next allowance can be scaled
+   *  from the gap the worker actually needed. */
+  lastSignalAt: number;
   /** Restarts the silence clock; called each time a depth lands. */
   touch(): void;
 }
 
 /** The capped on-thread search. Blocks, so it is only ever a last resort. */
-function searchHere(state: GameState): Move {
-  return getAiMoveIterative(state, seededRandom(randomSeed()), {
+function searchHere(game: AiGameId, payload: unknown): unknown {
+  return AI_ENGINES[game](payload, seededRandom(randomSeed()), {
     maxDepth: FALLBACK_MAX_DEPTH,
   });
 }
@@ -97,7 +111,7 @@ function settle(id: number, apply: (entry: Pending) => void): void {
 function failAll(reason: string): void {
   for (const id of [...pending.keys()]) {
     settle(id, (entry) => {
-      if (entry.best) {
+      if (entry.best !== null) {
         entry.resolve(entry.best);
         return;
       }
@@ -106,7 +120,7 @@ function failAll(reason: string): void {
       // to by tapping Nochmal and meeting the same wall.
       if (workerBroken) {
         try {
-          entry.resolve(searchHere(entry.state));
+          entry.resolve(searchHere(entry.game, entry.payload));
           return;
         } catch {
           // Engine threw on this position; fall through and report it.
@@ -154,7 +168,7 @@ function ensureWorker(): Worker | null {
     }
     settle(response.id, (entry) => {
       if (response.kind === "done") entry.resolve(response.move);
-      else if (entry.best) entry.resolve(entry.best);
+      else if (entry.best !== null) entry.resolve(entry.best);
       // An engine assertion is a diagnostic, so it stays a plain Error and the
       // UI shows its own copy. Wrapping it as AiUnavailableError would make the
       // UI treat "no legal move — check status first" as German player text.
@@ -186,11 +200,14 @@ function ensureWorker(): Worker | null {
  * That blocks the UI, so it is capped at FALLBACK_MAX_DEPTH — running the full
  * ladder here would be the original bug verbatim.
  */
-export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
+export function requestAiMove<TGame extends AiGameId>(
+  game: TGame,
+  payload: AiPayloads[TGame],
+): Promise<AiMoves[TGame]> {
   const active = ensureWorker();
   if (!active) {
     try {
-      return Promise.resolve(searchHere(state));
+      return Promise.resolve(searchHere(game, payload) as AiMoves[TGame]);
     } catch (error) {
       // An engine throw is a diagnostic, not player copy — keep it a plain
       // Error so the UI shows its own message instead of an assertion string.
@@ -199,26 +216,34 @@ export function requestAiMove(game: AiGameId, state: GameState): Promise<Move> {
   }
 
   const id = nextId++;
-  return new Promise<Move>((resolve, reject) => {
+  return new Promise<AiMoves[TGame]>((resolve, reject) => {
     // Silence past the deadline means the worker is gone — the silent kill
     // produces no error event at all, so this is the only thing that notices.
     // discardWorker settles through failAll: the deepest completed depth if we
     // got one, otherwise a rejection. Rebuilding happens on the next request.
     const onSilence = () => discardWorker("Die KI hat nicht geantwortet.");
     const entry: Pending = {
-      resolve,
+      resolve: resolve as (move: unknown) => void,
       reject,
       best: null,
-      state,
+      game,
+      payload,
       timer: setTimeout(onSilence, AI_IDLE_TIMEOUT_MS),
+      lastSignalAt: Date.now(),
       touch: () => {
+        const now = Date.now();
+        const gap = now - entry.lastSignalAt;
+        entry.lastSignalAt = now;
         clearTimeout(entry.timer);
-        entry.timer = setTimeout(onSilence, AI_IDLE_TIMEOUT_MS);
+        entry.timer = setTimeout(
+          onSilence,
+          Math.max(AI_IDLE_TIMEOUT_MS, gap * IDLE_GAP_MULTIPLIER),
+        );
       },
     };
 
     pending.set(id, entry);
-    const request: AiRequest = { id, game, state, seed: randomSeed() };
+    const request: AiRequest = { id, game, payload, seed: randomSeed() };
     active.postMessage(request);
   });
 }

@@ -8,6 +8,7 @@ import {
   hasWon,
   targetCamp,
   getAiTurn,
+  getAiTurnIterative,
   evaluate,
   otherPlayer,
   type Board,
@@ -202,5 +203,85 @@ describe("otherPlayer", () => {
   it("flips colours", () => {
     expect(otherPlayer("red")).toBe("blue");
     expect(otherPlayer("blue")).toBe("red");
+  });
+});
+
+// Iterative deepening lets a killed search leave a playable turn behind. It must
+// not cost strength: the ladder ends on the same depth, so the turn must match.
+// A constant-0 RNG would prove nothing — it satisfies `random() < blunderRate`
+// on easy (0.35) and medium (0.08), short-circuiting BOTH functions to a random
+// turn. Clear the blunder roll once, then 0 for every tie-break.
+describe("getAiTurnIterative — differential against getAiTurn", () => {
+  const searchingRng = (difficulty: GameState["difficulty"]): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
+
+  const positions: [string, () => GameState][] = [
+    ["opening", () => createGame({ mode: "ai", humanPlayer: "blue" })],
+    [
+      "a few turns in",
+      () => {
+        let state: GameState = createGame({ mode: "ai", humanPlayer: "blue" });
+        for (let turn = 0; turn < 4; turn++) {
+          for (const move of getAiTurn(state, seededRandom(turn + 1))) {
+            state = applyMove(state, move);
+          }
+        }
+        return state;
+      },
+    ],
+  ];
+
+  for (const [label, build] of positions) {
+    for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
+      it(`picks the same turn as getAiTurn — ${label}, ${difficulty}`, () => {
+        const state = { ...build(), difficulty };
+        // Guard the guard: assert the ladder actually ran, so a future change
+        // that short-circuits the search can't make this pass vacuously.
+        const depths: number[] = [];
+        const iterative = getAiTurnIterative(state, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toEqual(getAiTurn(state, searchingRng(difficulty)));
+      });
+    }
+  }
+
+  // Halma's depths are tiny (expert 3) because its branching factor is huge —
+  // the ladder still has to land exactly on the target. Pins every level, not
+  // just expert: the differentials compare the two entry points against each
+  // other, so they move together and can never notice a depth change.
+  it.each([
+    ["easy", [1]],
+    ["medium", [1]],
+    ["hard", [2]],
+    ["expert", [2, 3]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "blue" }), difficulty };
+    const depths: number[] = [];
+    getAiTurnIterative(state, searchingRng(difficulty), {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual(expected);
+  });
+
+  it("reports a replayable turn at every depth, so a killed search leaves a fallback", () => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "blue" }), difficulty: "expert" as const };
+    const reported: Move[][] = [];
+    getAiTurnIterative(state, searchingRng("expert"), {
+      onDepth: (progress) => reported.push(progress.move),
+    });
+    expect(reported.length).toBeGreaterThan(0);
+    for (const path of reported) {
+      expect(path.length).toBeGreaterThan(0);
+      let current: GameState = state;
+      for (const move of path) {
+        expect(isLegalMove(current, move)).toBe(true);
+        current = applyMove(current, move);
+      }
+    }
   });
 });

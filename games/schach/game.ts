@@ -14,6 +14,13 @@
 // so `applyMove` stays a single pure call and the search can weigh
 // under-promotion. Every move lookup therefore has to compare `promotion` too.
 
+import {
+  iterativeBest,
+  pickBest,
+  type IterativeOptions,
+  type Scored,
+} from "../../shell/iterative-search.js";
+
 export type Player = "white" | "black";
 export type PieceKind = "pawn" | "knight" | "bishop" | "rook" | "queen" | "king";
 export type PromotionKind = Exclude<PieceKind, "pawn" | "king">;
@@ -655,23 +662,36 @@ function drawByRule(state: GameState): DrawReason | null {
 // ---------------------------------------------------------------------------
 // AI — depth-limited negamax with alpha-beta pruning.
 // ---------------------------------------------------------------------------
-// Chess branches ~35 wide (against Dame's ~8), and this runs on the main
-// thread, so the depths are modest and moves are ordered (captures first,
-// MVV-LVA) to make the pruning bite. `blunderRate` — a chance per move of
+// Chess branches ~35 wide (against Dame's ~8), so moves are ordered (captures
+// first, MVV-LVA) to make the pruning bite. `blunderRate` — a chance per move of
 // playing a random legal move instead of searching — is what keeps "easy"
 // beatable, exactly as in Quadra and Dame.
 interface LevelConfig {
   depth: number;
   blunderRate: number;
 }
-// Measured worst case per move on an open middlegame (the branching peak, not
-// the opening — that one lies): 2ms / 27ms / 263ms / 443ms. Depth 5 was the
-// wall at ~5s, so expert stops at 4.
+// The depths used to stop where a blocking search stopped being tolerable: the
+// board froze for the whole search, so ~0.5s was the ceiling and expert sat at
+// 4. The search now runs in a worker, so a long think costs responsiveness
+// nothing, and the two blunder-free levels each gain a ply.
+//
+// Measured per move, worst of opening / 8 plies in / 20 plies in — each ply
+// costs roughly 7x:
+//
+//   depth 3    22ms      depth 6   7.4s
+//   depth 4   174ms      depth 7    84s
+//   depth 5   1.5s       depth 8   380s
+//
+// Expert stops at 5 rather than 6 for two reasons: 7.4s a move is a poor game
+// even unblocked, and on a 1GB device (~9x slower) depth 6 lands around 66s,
+// well past the point where the search is killed outright. Depth 5 is ~14s
+// there — and if it ever is killed, the deepest completed rung reported to the
+// main thread is depth 4, i.e. exactly the strength this level had before.
 const LEVELS: Record<Difficulty, LevelConfig> = {
   easy: { depth: 1, blunderRate: 0.35 },
   medium: { depth: 2, blunderRate: 0.08 },
-  hard: { depth: 3, blunderRate: 0 },
-  expert: { depth: 4, blunderRate: 0 },
+  hard: { depth: 4, blunderRate: 0 },
+  expert: { depth: 5, blunderRate: 0 },
 };
 
 const WIN_SCORE = 100000;
@@ -835,15 +855,56 @@ function negamax(state: GameState, depth: number, alpha: number, beta: number): 
  * what lets a beginner win.
  */
 export function getAiMove(state: GameState, random: RandomFn = Math.random): Move {
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return bestMoveAtDepth(state, moves, LEVELS[state.difficulty].depth, random).move;
+}
+
+/** The moves the search opens with, and whether a blunder short-circuits it.
+ *  Shared by both entry points so they consume `random` identically. */
+function openingChoice(
+  state: GameState,
+  random: RandomFn,
+): { moves: Move[]; shortcut: Move | null } {
   const moves = legalMoves(state);
   if (moves.length === 0) throw new Error("no legal move — check status first");
-  if (moves.length === 1) return moves[0];
+  if (moves.length === 1) return { moves, shortcut: moves[0] };
 
-  const { depth, blunderRate } = LEVELS[state.difficulty];
+  const { blunderRate } = LEVELS[state.difficulty];
   if (blunderRate > 0 && random() < blunderRate) {
-    return moves[Math.floor(random() * moves.length)];
+    return { moves, shortcut: moves[Math.floor(random() * moves.length)] };
   }
+  return { moves, shortcut: null };
+}
 
+/**
+ * Same search as `getAiMove`, walking increasing depths and reporting each one.
+ * The final depth — and so the strength — is identical; the intermediate results
+ * exist so a caller still holds a playable move if the search is killed before
+ * it finishes. See shell/iterative-search.ts for why that can happen silently.
+ */
+export function getAiMoveIterative(
+  state: GameState,
+  random: RandomFn = Math.random,
+  options: IterativeOptions<Move> = {},
+): Move {
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return iterativeBest(
+    LEVELS[state.difficulty].depth,
+    (depth) => bestMoveAtDepth(state, moves, depth, random),
+    options,
+  );
+}
+
+/** Best of `moves` searched to exactly `depth`; `random` breaks ties, consumed
+ *  exactly once, as the fixed-depth root always did. */
+function bestMoveAtDepth(
+  state: GameState,
+  moves: Move[],
+  depth: number,
+  random: RandomFn,
+): Scored<Move> {
   const ordered = orderMoves(state.board, moves);
   // Root pass with a propagating alpha — a full window per move would roughly
   // treble the cost at the deeper levels. Moves that fail low come back as an
@@ -870,9 +931,7 @@ export function getAiMove(state: GameState, random: RandomFn = Math.random): Mov
         ? entry
         : { move: entry.move, score: -negamax(advance(state, entry.move), depth - 1, -Infinity, Infinity) },
     );
-  const bestScore = Math.max(...exact.map((entry) => entry.score));
-  const best = exact.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)].move;
+  return pickBest(exact, random);
 }
 
 // ---------------------------------------------------------------------------
