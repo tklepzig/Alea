@@ -662,23 +662,36 @@ function drawByRule(state: GameState): DrawReason | null {
 // ---------------------------------------------------------------------------
 // AI — depth-limited negamax with alpha-beta pruning.
 // ---------------------------------------------------------------------------
-// Chess branches ~35 wide (against Dame's ~8), and this runs on the main
-// thread, so the depths are modest and moves are ordered (captures first,
-// MVV-LVA) to make the pruning bite. `blunderRate` — a chance per move of
+// Chess branches ~35 wide (against Dame's ~8), so moves are ordered (captures
+// first, MVV-LVA) to make the pruning bite. `blunderRate` — a chance per move of
 // playing a random legal move instead of searching — is what keeps "easy"
 // beatable, exactly as in Quadra and Dame.
 interface LevelConfig {
   depth: number;
   blunderRate: number;
 }
-// Measured worst case per move on an open middlegame (the branching peak, not
-// the opening — that one lies): 2ms / 27ms / 263ms / 443ms. Depth 5 was the
-// wall at ~5s, so expert stops at 4.
+// The depths used to stop where a blocking search stopped being tolerable: the
+// board froze for the whole search, so ~0.5s was the ceiling and expert sat at
+// 4. The search now runs in a worker, so a long think costs responsiveness
+// nothing, and the two blunder-free levels each gain a ply.
+//
+// Measured per move, worst of opening / 8 plies in / 20 plies in — each ply
+// costs roughly 7x:
+//
+//   depth 3    22ms      depth 6   7.4s
+//   depth 4   174ms      depth 7    84s
+//   depth 5   1.5s       depth 8   380s
+//
+// Expert stops at 5 rather than 6 for two reasons: 7.4s a move is a poor game
+// even unblocked, and on a 1GB device (~9x slower) depth 6 lands around 66s,
+// well past the point where the search is killed outright. Depth 5 is ~14s
+// there — and if it ever is killed, the deepest completed rung reported to the
+// main thread is depth 4, i.e. exactly the strength this level had before.
 const LEVELS: Record<Difficulty, LevelConfig> = {
   easy: { depth: 1, blunderRate: 0.35 },
   medium: { depth: 2, blunderRate: 0.08 },
-  hard: { depth: 3, blunderRate: 0 },
-  expert: { depth: 4, blunderRate: 0 },
+  hard: { depth: 4, blunderRate: 0 },
+  expert: { depth: 5, blunderRate: 0 },
 };
 
 const WIN_SCORE = 100000;
