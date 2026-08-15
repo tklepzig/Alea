@@ -6,6 +6,7 @@ import {
   isLegalMove,
   applyMove,
   getAiMove,
+  getAiMoveIterative,
   otherPlayer,
   isPlayable,
   type Board,
@@ -499,6 +500,155 @@ describe("getAiMove", () => {
     for (let seed = 0; seed < 12; seed++) {
       expect(isLegalMove(aiState, getAiMove(aiState, seededRandom(seed)))).toBe(true);
     }
+  });
+});
+
+// Iterative deepening exists so a killed search still leaves a playable move
+// behind. It must not cost strength: the final depth is the same, so the move
+// must be the same. Both entry points consume `random` identically up to the
+// final tie-break, so a constant RNG makes them pick the *same* candidate out
+// of the tied-best set — any divergence is a real change in what the AI plays.
+describe("getAiMoveIterative — differential against getAiMove", () => {
+  // A constant 0 would be worse than useless here: it satisfies
+  // `random() < blunderRate` on easy (0.3) and medium (0.08), so BOTH functions
+  // short-circuit to a random move and the comparison degenerates to
+  // `moves[0] === moves[0]` — the search never runs. Roll high once to clear the
+  // blunder check (both entry points consume that roll identically), then 0 for
+  // every tie-break so each picks the first of the tied-best moves.
+  const searchingRng = (difficulty: GameState["difficulty"]): (() => number) => {
+    const rollsForBlunder = difficulty === "easy" || difficulty === "medium";
+    let call = 0;
+    return () => (rollsForBlunder && ++call === 1 ? 0.99 : 0);
+  };
+
+  /** Board from the frozen-tablet report: 14 pieces, no capture available, so
+   *  nothing collapses the branching — the position that provoked all this. */
+  function tabletPosition(): Board {
+    const board = emptyBoard();
+    place(board, 1, 2, "red", "king");
+    for (const [row, col] of [[6, 7], [7, 0], [7, 2], [7, 4], [7, 6]]) {
+      place(board, row, col, "red");
+    }
+    for (const [row, col] of [[0, 5], [0, 7], [3, 4], [3, 6], [4, 1], [5, 0], [5, 2], [5, 4]]) {
+      place(board, row, col, "black");
+    }
+    return board;
+  }
+
+  function kingEndgame(): Board {
+    const board = emptyBoard();
+    place(board, 7, 0, "red", "king");
+    place(board, 5, 2, "red", "king");
+    place(board, 0, 1, "black", "king");
+    place(board, 2, 3, "black", "king");
+    return board;
+  }
+
+  const positions: [string, () => GameState][] = [
+    ["opening", () => ({ ...createGame({ mode: "ai", humanPlayer: "red" }), currentPlayer: "black" })],
+    ["tablet position", () => stateFrom(tabletPosition(), "black", { mode: "ai", humanPlayer: "red" })],
+    ["king endgame", () => stateFrom(kingEndgame(), "red", { mode: "ai", humanPlayer: "black" })],
+  ];
+
+  for (const [label, build] of positions) {
+    for (const difficulty of ["easy", "medium", "hard", "expert"] as const) {
+      it(`picks the same move as getAiMove — ${label}, ${difficulty}`, () => {
+        const state = { ...build(), difficulty };
+        // Guard the guard: if the blunder path ever swallowed these again the
+        // comparison would pass while proving nothing, so assert the ladder ran.
+        const depths: number[] = [];
+        const iterative = getAiMoveIterative(state, searchingRng(difficulty), {
+          onDepth: (progress) => depths.push(progress.depth),
+        });
+        expect(depths.length).toBeGreaterThan(0);
+        expect(iterative).toEqual(getAiMove(state, searchingRng(difficulty)));
+      });
+    }
+  }
+
+  it("matches getAiMove with flying kings on (ladder must still land on the target depth)", () => {
+    const state = {
+      ...stateFrom(kingEndgame(), "red", { mode: "ai", humanPlayer: "black" }),
+      difficulty: "expert" as const,
+      flyingKings: true,
+    };
+    expect(getAiMoveIterative(state, searchingRng("expert"))).toEqual(
+      getAiMove(state, searchingRng("expert")),
+    );
+  });
+
+  it("caps the ladder at maxDepth without touching the uncapped result", () => {
+    const state = { ...stateFrom(tabletPosition(), "black", { mode: "ai", humanPlayer: "red" }), difficulty: "expert" as const };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng("expert"), {
+      maxDepth: 4,
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([2, 4]);
+  });
+
+  it("ignores a maxDepth deeper than the difficulty's own target", () => {
+    const state = { ...stateFrom(tabletPosition(), "black", { mode: "ai", humanPlayer: "red" }), difficulty: "medium" as const };
+    const depths: number[] = [];
+    getAiMoveIterative(state, searchingRng("medium"), {
+      maxDepth: 99,
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([2, 4]);
+  });
+});
+
+describe("getAiMoveIterative — progress", () => {
+  // 0.99 clears every blunderRate, so the search actually runs on easy/medium.
+  const noBlunder = (): number => 0.99;
+
+  const depthsFor = (state: GameState): number[] => {
+    const depths: number[] = [];
+    getAiMoveIterative(state, noBlunder, {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    return depths;
+  };
+
+  const aiOpening = (difficulty: GameState["difficulty"], flyingKings = false): GameState => ({
+    ...createGame({ mode: "ai", humanPlayer: "red", difficulty, flyingKings }),
+    currentPlayer: "black",
+  });
+
+  it.each([
+    ["easy", [2]],
+    ["medium", [2, 4]],
+    ["hard", [2, 4, 6]],
+    ["expert", [2, 4, 6, 8]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    expect(depthsFor(aiOpening(difficulty))).toEqual(expected);
+  });
+
+  // Flying expert searches 5, which an even stride would step straight over —
+  // the target has to be the last rung or the deepest result is never computed.
+  it("ends on an odd target depth (flying expert = 5)", () => {
+    expect(depthsFor(aiOpening("expert", true))).toEqual([2, 4, 5]);
+  });
+
+  it("reports a usable move at every depth, so a killed search leaves a fallback", () => {
+    const state = aiOpening("hard");
+    const reported: Move[] = [];
+    getAiMoveIterative(state, noBlunder, {
+      onDepth: (progress) => reported.push(progress.move),
+    });
+    expect(reported).toHaveLength(3);
+    for (const candidate of reported) {
+      expect(isLegalMove(state, candidate)).toBe(true);
+    }
+  });
+
+  it("does not report progress when a blunder short-circuits the search", () => {
+    const state = aiOpening("easy");
+    const depths: number[] = [];
+    getAiMoveIterative(state, () => 0, {
+      onDepth: (progress) => depths.push(progress.depth),
+    });
+    expect(depths).toEqual([]);
   });
 });
 

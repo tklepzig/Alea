@@ -5,6 +5,10 @@
     "types": ["jest"]
   },
   "include": [
+    "shell/ai-client.ts",
+    "shell/ai-client.test.ts",
+    "shell/ai-protocol.ts",
+    "shell/seeded-random.ts",
     "games/quadra/game.ts",
     "games/quadra/game.test.ts",
     "games/quadra/storage.ts",

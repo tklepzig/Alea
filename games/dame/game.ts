@@ -575,6 +575,41 @@ function scoreFirstStep(state: GameState, firstStep: Move, depth: number): numbe
   return -negamax(next, depth - 1, -Infinity, Infinity);
 }
 
+/** Best of `moves` searched to exactly `depth`. Every move that ties the top
+ *  score is a candidate and `random` picks between them, so the AI doesn't
+ *  always answer a position the same way. Consumes exactly one `random()`. */
+function bestMoveAtDepth(
+  state: GameState,
+  moves: Move[],
+  depth: number,
+  random: RandomFn,
+): { move: Move; score: number } {
+  const scored = moves.map((move) => ({
+    move,
+    score: scoreFirstStep(state, move, depth),
+  }));
+  const bestScore = Math.max(...scored.map((entry) => entry.score));
+  const best = scored.filter((entry) => entry.score === bestScore);
+  return best[Math.floor(random() * best.length)];
+}
+
+/** The moves the search opens with, and whether a blunder short-circuits it.
+ *  Shared by both entry points so they consume `random` identically. */
+function openingChoice(
+  state: GameState,
+  random: RandomFn,
+): { moves: Move[]; shortcut: Move | null } {
+  const moves = legalMoves(state);
+  if (moves.length === 0) throw new Error("no legal move — check status first");
+  if (moves.length === 1) return { moves, shortcut: moves[0] };
+
+  const { blunderRate } = LEVELS[state.difficulty];
+  if (blunderRate > 0 && random() < blunderRate) {
+    return { moves, shortcut: moves[Math.floor(random() * moves.length)] };
+  }
+  return { moves, shortcut: null };
+}
+
 /**
  * Pick one diagonal step for the side to move. Returns a single step (from→to,
  * possibly a capture); when a multi-jump is in progress the UI simply calls
@@ -586,21 +621,68 @@ export function getAiMove(
   state: GameState,
   random: RandomFn = Math.random,
 ): Move {
-  const moves = legalMoves(state);
-  if (moves.length === 0) throw new Error("no legal move — check status first");
-  if (moves.length === 1) return moves[0];
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return bestMoveAtDepth(state, moves, searchDepth(state), random).move;
+}
 
-  const { blunderRate } = LEVELS[state.difficulty];
-  if (blunderRate > 0 && random() < blunderRate) {
-    return moves[Math.floor(random() * moves.length)];
+/** The depths an iterative search walks before reaching `target`. The target is
+ *  always last, even when the ladder's stride would skip it (flying expert = 5). */
+function depthLadder(target: number): number[] {
+  const ladder: number[] = [];
+  for (let depth = 2; depth < target; depth += 2) ladder.push(depth);
+  ladder.push(target);
+  return ladder;
+}
+
+export interface SearchProgress {
+  depth: number;
+  move: Move;
+  score: number;
+}
+
+export interface IterativeOptions {
+  /** Called after each completed depth. */
+  onDepth?: (progress: SearchProgress) => void;
+  /** Stop the ladder here even if the difficulty would go deeper. Strictly for
+   *  callers that must not block for long — a shallow move beats a killed
+   *  context. Leave unset to keep full strength. */
+  maxDepth?: number;
+}
+
+/**
+ * Same search as `getAiMove`, reached by walking increasing depths and calling
+ * `onDepth` after each one completes. The final depth — and so the strength — is
+ * identical; the intermediate results exist so a caller still holds a playable
+ * move if the search never finishes.
+ *
+ * That matters on low-memory devices: a deep search can be killed outright
+ * mid-flight, taking the whole JS execution context (pending timers included)
+ * with it, so there is no way to recover a result after the fact. Run this in a
+ * worker and keep the last reported move.
+ *
+ * Note it consumes one `random()` per depth for tie-breaking, so among moves
+ * that score *equally* it may land on a different one than `getAiMove` — the
+ * score of the move it returns is the same.
+ */
+export function getAiMoveIterative(
+  state: GameState,
+  random: RandomFn = Math.random,
+  options: IterativeOptions = {},
+): Move {
+  const { moves, shortcut } = openingChoice(state, random);
+  if (shortcut) return shortcut;
+
+  const { onDepth, maxDepth } = options;
+  const target =
+    maxDepth === undefined
+      ? searchDepth(state)
+      : Math.min(searchDepth(state), maxDepth);
+
+  let best = { move: moves[0], score: -Infinity };
+  for (const depth of depthLadder(target)) {
+    best = bestMoveAtDepth(state, moves, depth, random);
+    onDepth?.({ depth, move: best.move, score: best.score });
   }
-  const depth = searchDepth(state);
-
-  const scored = moves.map((move) => ({
-    move,
-    score: scoreFirstStep(state, move, depth),
-  }));
-  const bestScore = Math.max(...scored.map((entry) => entry.score));
-  const best = scored.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)].move;
+  return best.move;
 }
