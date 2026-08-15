@@ -191,7 +191,7 @@ describe("requestAiMove", () => {
     FakeWorker.failConstruction = true;
     const { requestAiMove } = await freshClient();
     const state = aiState();
-    const chosen = await requestAiMove("dame", state);
+    const chosen = await requestAiMove<Move>("dame", state);
     expect(isLegalMove(state, chosen)).toBe(true);
     expect(FakeWorker.instances).toHaveLength(0);
   });
@@ -265,7 +265,7 @@ describe("worker load failures", () => {
     // the capped on-thread search rather than being reported as a failure —
     // otherwise the player taps Nochmal only to meet the same wall.
     const state = aiState();
-    const chosen = await requestAiMove("dame", state);
+    const chosen = await requestAiMove<Move>("dame", state);
     expect(isLegalMove(state, chosen)).toBe(true);
     expect(mockOptionsSeen[mockOptionsSeen.length - 1].maxDepth).toBe(4);
 

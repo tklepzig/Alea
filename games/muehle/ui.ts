@@ -12,7 +12,6 @@ import {
   POINTS,
   createGame,
   applyMove,
-  getAiMove,
   legalMoves,
   onBoardCount,
   phaseOf,
@@ -22,6 +21,12 @@ import {
   type Move,
   type Player,
 } from "./game.js";
+import {
+  AiCancelledError,
+  AiUnavailableError,
+  cancelAiMoves,
+  requestAiMove,
+} from "../../shell/ai-client.js";
 import {
   DEFAULT_SETTINGS,
   serializeGame,
@@ -139,6 +144,12 @@ let history: GameState[] = [];
 // relaunching the app — can't hand the button back.
 let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 let aiThinking = false;
+// Why the AI didn't move, when it didn't. Without it a dead search is
+// indistinguishable from a live one and the game is stuck for good.
+let aiFailed: string | null = null;
+// Bumped whenever a pending AI answer stops being wanted, so a late reply can
+// be recognised as stale and dropped.
+let aiGeneration = 0;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -213,6 +224,10 @@ function clearTimers(): void {
   endTimer = undefined;
   flashTimer = undefined;
   aiThinking = false;
+  aiFailed = null;
+  // A request already handed to the worker outlives its timer, so drop it too.
+  aiGeneration++;
+  cancelAiMoves();
 }
 
 // ---------------------------------------------------------------------------
@@ -320,6 +335,7 @@ function whoText(state: GameState): string {
 }
 
 function titleText(state: GameState): string {
+  if (aiFailed) return "KI-Fehler";
   if (state.mode === "ai" && state.currentPlayer !== state.humanPlayer && !aiThinking) {
     return "KI denkt …";
   }
@@ -332,6 +348,7 @@ function titleText(state: GameState): string {
 }
 
 function annotText(state: GameState): string {
+  if (aiFailed) return `${aiFailed} Tippe auf „Nochmal“.`;
   if (aiThinking) return "";
   if (state.pendingCapture) return "Mühle geschlossen — nimm einen gegnerischen Stein.";
   const phase = phaseOf(state, state.currentPlayer);
@@ -349,6 +366,7 @@ function paintStatus(): void {
   title.className = `title turn ${game.currentPlayer}`;
   byId("game-annot").textContent = annotText(game);
   byId("board-actions").hidden = !undoAllowed;
+  byId("ai-failed").hidden = aiFailed === null;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -442,10 +460,43 @@ function maybeScheduleAi(): void {
   // Before a mill's capture step, wait out the placing/sliding animation.
   const gap = game.pendingCapture ? CONTINUE_MS : AI_DELAY_MS;
   aiTimer = setTimeout(() => {
-    aiThinking = false;
-    if (!game || game.status !== "playing" || !isAiTurn(game)) return;
-    step(getAiMove(game));
+    if (!game || game.status !== "playing" || !isAiTurn(game)) {
+      aiThinking = false;
+      if (game) renderGame();
+      return;
+    }
+    // Stamp the request: by the time the answer lands the player may have
+    // undone, restarted or left, and a move for the old position would be
+    // illegal in the new one.
+    const asked = ++aiGeneration;
+    const current = game;
+    requestAiMove<Move>("muehle", current)
+      .then((move) => {
+        if (aiGeneration !== asked) return;
+        aiThinking = false;
+        step(move);
+      })
+      .catch((error: unknown) => {
+        if (aiGeneration !== asked || error instanceof AiCancelledError) return;
+        aiThinking = false;
+        // Only AiUnavailableError carries copy meant for a player; anything
+        // else is an engine assertion and must not reach a German UI.
+        if (!(error instanceof AiUnavailableError)) console.error("Mühle AI:", error);
+        aiFailed =
+          error instanceof AiUnavailableError
+            ? error.message
+            : "Die KI konnte nicht ziehen.";
+        renderGame();
+      });
   }, gap);
+}
+
+/** Ask the AI again after a failure — the position is unchanged. */
+function retryAi(): void {
+  if (!game || game.status !== "playing" || !isAiTurn(game)) return;
+  aiFailed = null;
+  renderGame();
+  maybeScheduleAi();
 }
 
 // ---------------------------------------------------------------------------
@@ -611,6 +662,7 @@ export function initMuehle(host: GameHost): GameController {
 
   byId("game-back").addEventListener("click", goHome);
   byId("btn-undo").addEventListener("click", undo);
+  byId("btn-ai-retry").addEventListener("click", retryAi);
   byId("game-restart").addEventListener("click", () => {
     if (!game) return;
     startGame(game.mode, game.difficulty, game.humanPlayer === "red");

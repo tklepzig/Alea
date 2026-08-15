@@ -1,4 +1,4 @@
-// AI worker entry. esbuild bundles this (and the engines it imports) into
+// AI worker entry. esbuild bundles this (and every engine it dispatches to) into
 // ai-worker.js, which offline-kit precaches like any other asset.
 //
 // Why the search lives here rather than on the main thread: a deep search can be
@@ -14,7 +14,7 @@
 
 /// <reference lib="webworker" />
 
-import { getAiMoveIterative } from "./games/dame/game.js";
+import { AI_ENGINES } from "./shell/ai-engines.js";
 import type { AiRequest, AiResponse } from "./shell/ai-protocol.js";
 import { seededRandom } from "./shell/seeded-random.js";
 
@@ -27,11 +27,11 @@ const post = (response: AiResponse): void => {
 };
 
 ctx.onmessage = (event: MessageEvent<AiRequest>): void => {
-  const { id, game, state, seed } = event.data;
+  const { id, game, payload, seed } = event.data;
   try {
-    if (game !== "dame") throw new Error(`unknown game "${game}"`);
-    const random = seededRandom(seed);
-    const move = getAiMoveIterative(state, random, {
+    const search = AI_ENGINES[game];
+    if (!search) throw new Error(`unknown game "${game}"`);
+    const move = search(payload, seededRandom(seed), {
       onDepth: (progress) => {
         post({ id, kind: "progress", depth: progress.depth, move: progress.move });
       },
@@ -45,7 +45,7 @@ ctx.onmessage = (event: MessageEvent<AiRequest>): void => {
       id,
       kind: "error",
       message: error instanceof Error ? error.message : String(error),
-      // Everything reachable here comes out of the engine, so the message is a
+      // Everything reachable here comes out of an engine, so the message is a
       // diagnostic. The client must not pass it off as text for a player.
       fromEngine: true,
     });

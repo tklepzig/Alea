@@ -12,7 +12,6 @@ import {
   SIZE,
   createGame,
   applyMove,
-  getAiMove,
   isInCheck,
   legalMoves,
   otherPlayer,
@@ -26,6 +25,12 @@ import {
   type PromotionKind,
   type Square,
 } from "./game.js";
+import {
+  AiCancelledError,
+  AiUnavailableError,
+  cancelAiMoves,
+  requestAiMove,
+} from "../../shell/ai-client.js";
 import {
   DEFAULT_SETTINGS,
   serializeGame,
@@ -99,6 +104,12 @@ let history: GameState[] = [];
 let undoAllowed = isUndoAllowed(UNDO_LOCK_KEY);
 // True while the AI's move is pending — the board is locked against input.
 let aiThinking = false;
+// Why the AI didn't move, when it didn't. Without it a dead search is
+// indistinguishable from a live one and the game is stuck for good.
+let aiFailed: string | null = null;
+// Bumped whenever a pending AI answer stops being wanted, so a late reply can
+// be recognised as stale and dropped.
+let aiGeneration = 0;
 let aiTimer: ReturnType<typeof setTimeout> | undefined;
 let endTimer: ReturnType<typeof setTimeout> | undefined;
 let flashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -181,6 +192,10 @@ function clearTimers(): void {
   endTimer = undefined;
   flashTimer = undefined;
   aiThinking = false;
+  aiFailed = null;
+  // A request already handed to the worker outlives its timer, so drop it too.
+  aiGeneration++;
+  cancelAiMoves();
 }
 
 // ---------------------------------------------------------------------------
@@ -306,6 +321,7 @@ function renderBoard(container: HTMLElement, state: GameState, interactive: bool
 // Game screen
 // ---------------------------------------------------------------------------
 function turnText(state: GameState): string {
+  if (aiFailed) return "KI-Fehler";
   if (state.mode === "local") return `${COLOUR_NAMES[state.currentPlayer]} ist dran`;
   return state.currentPlayer === state.humanPlayer ? "Du bist dran" : "KI denkt …";
 }
@@ -344,6 +360,7 @@ function describeMove(state: GameState, move: Move, victim: Piece | null): strin
 }
 
 function annotText(state: GameState): string {
+  if (aiFailed) return `${aiFailed} Tippe auf „Nochmal“.`;
   // The board is locked and unfocusable meanwhile — the title says so visually,
   // but this is the only live region, so it has to say so too.
   if (aiThinking) return "KI denkt …";
@@ -374,6 +391,7 @@ function paintStatus(): void {
   title.className = `title turn ${game.currentPlayer}`;
   setText(byId("game-annot"), annotText(game));
   byId("board-actions").hidden = !undoAllowed;
+  byId("ai-failed").hidden = aiFailed === null;
   (byId("btn-undo") as HTMLButtonElement).disabled =
     history.length === 0 || game.status !== "playing";
 }
@@ -512,10 +530,38 @@ function maybeScheduleAi(): void {
   paintStatus();
   const gap = Math.max(AI_DELAY_MS, slideDuration - SLIDE_LEAD_MS);
   aiTimer = setTimeout(() => {
-    aiThinking = false;
-    if (!game || game.status !== "playing" || !isAiTurn(game)) return;
-    play(getAiMove(game));
+    if (!game || game.status !== "playing" || !isAiTurn(game)) {
+      aiThinking = false;
+      if (game) renderGame();
+      return;
+    }
+    const asked = ++aiGeneration;
+    const current = game;
+    requestAiMove<Move>("schach", current)
+      .then((move) => {
+        if (aiGeneration !== asked) return;
+        aiThinking = false;
+        play(move);
+      })
+      .catch((error: unknown) => {
+        if (aiGeneration !== asked || error instanceof AiCancelledError) return;
+        aiThinking = false;
+        if (!(error instanceof AiUnavailableError)) console.error("Schach AI:", error);
+        aiFailed =
+          error instanceof AiUnavailableError
+            ? error.message
+            : "Die KI konnte nicht ziehen.";
+        renderGame();
+      });
   }, gap);
+}
+
+/** Ask the AI again after a failure — the position is unchanged. */
+function retryAi(): void {
+  if (!game || game.status !== "playing" || !isAiTurn(game)) return;
+  aiFailed = null;
+  renderGame();
+  maybeScheduleAi();
 }
 
 // ---------------------------------------------------------------------------
@@ -702,6 +748,7 @@ export function initSchach(host: GameHost): GameController {
 
   byId("game-back").addEventListener("click", goHome);
   byId("btn-undo").addEventListener("click", undo);
+  byId("btn-ai-retry").addEventListener("click", retryAi);
   byId("game-restart").addEventListener("click", restart);
 
   byId("end-back").addEventListener("click", goHome);
