@@ -16,7 +16,7 @@
     "pwa:watch": "offline-kit build --watch"
   },
   "dependencies": {
-    "@tklepzig/offline-kit": "0.3.0-worker-entries-86793884e256010ecc4bc9a859479f0c9d5c7162"
+    "@tklepzig/offline-kit": "0.3.0"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
