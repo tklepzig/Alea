@@ -6,6 +6,13 @@
 // keep jumping or stop. A player wins when all ten of their pieces occupy the
 // opposite camp. Everything here is deterministic given an injected RNG.
 
+import {
+  iterativeBest,
+  pickBest,
+  type IterativeOptions,
+  type Scored,
+} from "../../shell/iterative-search.js";
+
 export type Player = "red" | "blue";
 export type Cell = Player | null;
 /** board[row][col]; 10×10, row 0 at the top. */
@@ -361,21 +368,59 @@ function negamax(state: GameState, depth: number, alpha: number, beta: number): 
  * "easy" it sometimes plays a random legal turn instead of searching.
  */
 export function getAiTurn(state: GameState, random: RandomFn = Math.random): Move[] {
+  const shortcut = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return bestTurnAtDepth(state, LEVELS[state.difficulty].depth, random).move;
+}
+
+/** A blunder (or a forced/absent choice) short-circuits the search. Shared by
+ *  both entry points so they consume `random` identically. */
+function openingChoice(state: GameState, random: RandomFn): Move[] | null {
   const all = resolvedTurns(state);
   if (all.length === 0) throw new Error("no legal turn — check status first");
 
-  const { depth, blunderRate } = LEVELS[state.difficulty];
+  const { blunderRate } = LEVELS[state.difficulty];
   if (blunderRate > 0 && random() < blunderRate) {
     return all[Math.floor(random() * all.length)].path;
   }
+  return null;
+}
 
+/** Best turn searched to exactly `depth`; `random` breaks ties, consumed exactly
+ *  once, as the fixed-depth root always did. */
+function bestTurnAtDepth(
+  state: GameState,
+  depth: number,
+  random: RandomFn,
+): Scored<Move[]> {
   const scored = candidateTurns(state).map((turn) => {
     if (turn.state.status !== "playing") {
-      return { path: turn.path, score: turn.state.winner === state.currentPlayer ? WIN_SCORE * 2 : -WIN_SCORE };
+      return {
+        move: turn.path,
+        score: turn.state.winner === state.currentPlayer ? WIN_SCORE * 2 : -WIN_SCORE,
+      };
     }
-    return { path: turn.path, score: -negamax(turn.state, depth - 1, -Infinity, Infinity) };
+    return { move: turn.path, score: -negamax(turn.state, depth - 1, -Infinity, Infinity) };
   });
-  const bestScore = Math.max(...scored.map((entry) => entry.score));
-  const best = scored.filter((entry) => entry.score === bestScore);
-  return best[Math.floor(random() * best.length)].path;
+  return pickBest(scored, random);
+}
+
+/**
+ * Same search as `getAiTurn`, walking increasing depths and reporting each one.
+ * The final depth — and so the strength — is identical; the intermediate results
+ * exist so a caller still holds a playable turn if the search is killed before
+ * it finishes. See shell/iterative-search.ts for why that can happen silently.
+ */
+export function getAiTurnIterative(
+  state: GameState,
+  random: RandomFn = Math.random,
+  options: IterativeOptions<Move[]> = {},
+): Move[] {
+  const shortcut = openingChoice(state, random);
+  if (shortcut) return shortcut;
+  return iterativeBest(
+    LEVELS[state.difficulty].depth,
+    (depth) => bestTurnAtDepth(state, depth, random),
+    options,
+  );
 }
