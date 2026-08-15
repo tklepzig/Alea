@@ -254,14 +254,21 @@ describe("getAiMoveIterative — differential against getAiMove", () => {
     }
   }
 
-  // Quadra's expert depth is 7 — odd, so an even stride would step over it and
-  // the deepest result, the whole point, would never be computed.
-  it("ends on Quadra's odd expert depth (7)", () => {
+  // Pins every level's depth, not just expert: the differentials compare the two
+  // entry points against each other, so they move together and can never notice
+  // a depth change. Expert's 7 is odd, so an even stride would step over it and
+  // the deepest result — the whole point — would never be computed.
+  it.each([
+    ["easy", [2]],
+    ["medium", [2, 4]],
+    ["hard", [2, 4, 6]],
+    ["expert", [2, 4, 6, 7]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
     const depths: number[] = [];
-    getAiMoveIterative(createBoard(), R, "expert", searchingRng("expert"), {
+    getAiMoveIterative(createBoard(), R, difficulty, searchingRng(difficulty), {
       onDepth: (progress) => depths.push(progress.depth),
     });
-    expect(depths).toEqual([2, 4, 6, 7]);
+    expect(depths).toEqual(expected);
   });
 
   it("reports a playable column at every depth, so a killed search leaves a fallback", () => {

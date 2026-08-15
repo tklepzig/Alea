@@ -336,7 +336,13 @@ function whoText(state: GameState): string {
 
 function titleText(state: GameState): string {
   if (aiFailed) return "KI-Fehler";
-  if (state.mode === "ai" && state.currentPlayer !== state.humanPlayer && !aiThinking) {
+  // Not `!aiThinking`: the flag used to be cleared at the top of the timer
+  // callback, so the negation only mislabelled an imperceptible instant around a
+  // blocking search that painted nothing anyway. It now stays true for the whole
+  // worker round trip, and with the negation the title would read "KI setzt
+  // (noch 9)" for seconds on end while the board sits locked — a live search and
+  // a dead one looking identical, which is the ambiguity this all exists to end.
+  if (state.mode === "ai" && state.currentPlayer !== state.humanPlayer) {
     return "KI denkt …";
   }
   const who = whoText(state);
@@ -470,7 +476,7 @@ function maybeScheduleAi(): void {
     // illegal in the new one.
     const asked = ++aiGeneration;
     const current = game;
-    requestAiMove<Move>("muehle", current)
+    requestAiMove("muehle", current)
       .then((move) => {
         if (aiGeneration !== asked) return;
         aiThinking = false;

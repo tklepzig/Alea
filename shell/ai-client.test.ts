@@ -8,9 +8,9 @@ import {
   createGame,
   isLegalMove,
   type GameState,
-  type IterativeOptions,
   type Move,
 } from "../games/dame/game.js";
+import type { IterativeOptions } from "./iterative-search.js";
 
 // The fallback's depth cap has no observable effect on the returned move — any
 // depth yields a legal one — so the only assertable invariant is the options the
@@ -191,7 +191,7 @@ describe("requestAiMove", () => {
     FakeWorker.failConstruction = true;
     const { requestAiMove } = await freshClient();
     const state = aiState();
-    const chosen = await requestAiMove<Move>("dame", state);
+    const chosen = await requestAiMove("dame", state);
     expect(isLegalMove(state, chosen)).toBe(true);
     expect(FakeWorker.instances).toHaveLength(0);
   });
@@ -265,7 +265,7 @@ describe("worker load failures", () => {
     // the capped on-thread search rather than being reported as a failure —
     // otherwise the player taps Nochmal only to meet the same wall.
     const state = aiState();
-    const chosen = await requestAiMove<Move>("dame", state);
+    const chosen = await requestAiMove("dame", state);
     expect(isLegalMove(state, chosen)).toBe(true);
     expect(mockOptionsSeen[mockOptionsSeen.length - 1].maxDepth).toBe(4);
 
@@ -321,6 +321,47 @@ describe("error reporting", () => {
     const pending = requestAiMove("dame", aiState());
     jest.advanceTimersByTime(60_000);
     await expect(pending).rejects.toBeInstanceOf(AiUnavailableError);
+  });
+});
+
+// Quadra answers with a column index, and 0 is an ordinary answer. Under a
+// truthiness check (`entry.best` rather than `entry.best !== null`) a worker
+// that reported column 0 and then died silently would reject instead of playing
+// the move it had already found — the stuck/"KI-Fehler" outcome this whole
+// design removes, for the one game whose move type can be falsy.
+describe("a falsy move is still a move", () => {
+  const quadraPayload = () => ({
+    board: Array.from({ length: 7 }, () => Array.from({ length: 6 }, () => null)),
+    player: "red" as const,
+    difficulty: "hard" as const,
+  });
+
+  it("falls back to column 0 when the worker goes silent", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "progress", depth: 2, move: 0 });
+      // ...then nothing.
+    };
+    const pending = requestAiMove("quadra", quadraPayload());
+    jest.advanceTimersByTime(60_000);
+    await expect(pending).resolves.toBe(0);
+  });
+
+  it("prefers column 0 over a late worker error", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "progress", depth: 2, move: 0 });
+      worker.reply({ id: request.id, kind: "error", message: "kaputt", fromEngine: false });
+    };
+    await expect(requestAiMove("quadra", quadraPayload())).resolves.toBe(0);
+  });
+
+  it("resolves column 0 from a completed search", async () => {
+    const { requestAiMove } = await freshClient();
+    FakeWorker.onRequest = (worker, request) => {
+      worker.reply({ id: request.id, kind: "done", move: 0 });
+    };
+    await expect(requestAiMove("quadra", quadraPayload())).resolves.toBe(0);
   });
 });
 

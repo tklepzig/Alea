@@ -381,7 +381,7 @@ function maybeScheduleAi(): void {
     const asked = ++aiGeneration;
     const current = game;
     // Halma's engine answers with a whole turn — a path of hops the UI replays.
-    requestAiMove<Move[]>("halma", current)
+    requestAiMove("halma", current)
       .then((path) => {
         if (aiGeneration !== asked) return;
         playPath(path, 0);
@@ -408,7 +408,15 @@ function retryAi(): void {
 }
 
 function playPath(path: Move[], index: number): void {
-  if (!game || index >= path.length) return;
+  // Every other exit clears aiThinking; this one has to as well. An empty path
+  // (or a game that vanished under us) would otherwise leave the board locked
+  // with the AI apparently still thinking and nothing scheduled — the precise
+  // stuck state this whole change exists to remove.
+  if (!game || index >= path.length) {
+    aiThinking = false;
+    if (game) renderGame();
+    return;
+  }
   game = applyMove(game, path[index]);
   noteMove(path[index]);
 

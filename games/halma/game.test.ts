@@ -251,14 +251,21 @@ describe("getAiTurnIterative — differential against getAiTurn", () => {
   }
 
   // Halma's depths are tiny (expert 3) because its branching factor is huge —
-  // the ladder still has to land exactly on the target.
-  it("ends on Halma's odd expert depth (3)", () => {
-    const state = { ...createGame({ mode: "ai", humanPlayer: "blue" }), difficulty: "expert" as const };
+  // the ladder still has to land exactly on the target. Pins every level, not
+  // just expert: the differentials compare the two entry points against each
+  // other, so they move together and can never notice a depth change.
+  it.each([
+    ["easy", [1]],
+    ["medium", [1]],
+    ["hard", [2]],
+    ["expert", [2, 3]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "blue" }), difficulty };
     const depths: number[] = [];
-    getAiTurnIterative(state, searchingRng("expert"), {
+    getAiTurnIterative(state, searchingRng(difficulty), {
       onDepth: (progress) => depths.push(progress.depth),
     });
-    expect(depths).toEqual([2, 3]);
+    expect(depths).toEqual(expected);
   });
 
   it("reports a replayable turn at every depth, so a killed search leaves a fallback", () => {

@@ -9,7 +9,7 @@
 // armed on a blocked main thread dies with the search and never fires (measured;
 // see ai-worker.ts). So: a timeout, and the last reported depth as the answer.
 
-import { AI_ENGINES } from "./ai-engines.js";
+import { AI_ENGINES, type AiMoves, type AiPayloads } from "./ai-engines.js";
 import type { AiGameId, AiRequest, AiResponse } from "./ai-protocol.js";
 import { randomSeed, seededRandom } from "./seeded-random.js";
 
@@ -18,11 +18,21 @@ const WORKER_URL = "ai-worker.js";
 
 // How long the worker may stay *silent* before we call it dead. Re-armed on
 // every completed depth, so it measures a gap between results, not a total
-// budget — a search that keeps reporting can run as long as it likes and never
-// loses strength to the clock. Only a single depth-step longer than this is
-// truncated, and on the device where that happens (depth 6 → 8 on the 1GB
-// tablet) the step never completes anyway; it is killed around 30s.
+// budget — a search that keeps reporting can run as long as it likes.
+//
+// A constant is not enough, though: each rung costs several times the one
+// before, so the final gap is exactly where a perfectly healthy search looks
+// dead. With a flat 25s the deepest rung of Mühle expert (measured ~15s here,
+// so ~130s on a 9x-slower tablet) and Halma expert would time out every single
+// move, and the fallback is the *previous* rung — those levels would quietly
+// and permanently play at their "hard" depth on the one device this whole
+// design exists for, re-paying the discarded work each turn.
+//
+// So scale the allowance from the gap actually observed: whatever the last rung
+// took, allow generously more for the next. Still a liveness check, not a
+// budget — it never truncates a search that is reporting progress.
 const AI_IDLE_TIMEOUT_MS = 25_000;
+const IDLE_GAP_MULTIPLIER = 20;
 
 // Depth cap for the main-thread fallback only. That path blocks the UI, and an
 // unbounded ladder there would reproduce the original bug exactly: ~30s of
@@ -58,6 +68,9 @@ interface Pending {
   game: AiGameId;
   payload: unknown;
   timer: ReturnType<typeof setTimeout>;
+  /** When the last sign of life arrived, so the next allowance can be scaled
+   *  from the gap the worker actually needed. */
+  lastSignalAt: number;
   /** Restarts the silence clock; called each time a depth lands. */
   touch(): void;
 }
@@ -187,11 +200,14 @@ function ensureWorker(): Worker | null {
  * That blocks the UI, so it is capped at FALLBACK_MAX_DEPTH — running the full
  * ladder here would be the original bug verbatim.
  */
-export function requestAiMove<TMove>(game: AiGameId, payload: unknown): Promise<TMove> {
+export function requestAiMove<TGame extends AiGameId>(
+  game: TGame,
+  payload: AiPayloads[TGame],
+): Promise<AiMoves[TGame]> {
   const active = ensureWorker();
   if (!active) {
     try {
-      return Promise.resolve(searchHere(game, payload) as TMove);
+      return Promise.resolve(searchHere(game, payload) as AiMoves[TGame]);
     } catch (error) {
       // An engine throw is a diagnostic, not player copy — keep it a plain
       // Error so the UI shows its own message instead of an assertion string.
@@ -200,7 +216,7 @@ export function requestAiMove<TMove>(game: AiGameId, payload: unknown): Promise<
   }
 
   const id = nextId++;
-  return new Promise<TMove>((resolve, reject) => {
+  return new Promise<AiMoves[TGame]>((resolve, reject) => {
     // Silence past the deadline means the worker is gone — the silent kill
     // produces no error event at all, so this is the only thing that notices.
     // discardWorker settles through failAll: the deepest completed depth if we
@@ -213,9 +229,16 @@ export function requestAiMove<TMove>(game: AiGameId, payload: unknown): Promise<
       game,
       payload,
       timer: setTimeout(onSilence, AI_IDLE_TIMEOUT_MS),
+      lastSignalAt: Date.now(),
       touch: () => {
+        const now = Date.now();
+        const gap = now - entry.lastSignalAt;
+        entry.lastSignalAt = now;
         clearTimeout(entry.timer);
-        entry.timer = setTimeout(onSilence, AI_IDLE_TIMEOUT_MS);
+        entry.timer = setTimeout(
+          onSilence,
+          Math.max(AI_IDLE_TIMEOUT_MS, gap * IDLE_GAP_MULTIPLIER),
+        );
       },
     };
 

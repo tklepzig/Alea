@@ -300,7 +300,7 @@ function maybeScheduleAi(): void {
       player: game.currentPlayer,
       difficulty: game.difficulty,
     };
-    requestAiMove<number>("quadra", payload)
+    requestAiMove("quadra", payload)
       .then((column) => {
         if (aiGeneration !== asked) return;
         aiThinking = false;

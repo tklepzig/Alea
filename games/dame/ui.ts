@@ -443,7 +443,7 @@ function maybeScheduleAi(): void {
     // invalidates the answer.
     const asked = ++aiGeneration;
     const current = game;
-    requestAiMove<Move>("dame", current)
+    requestAiMove("dame", current)
       .then((move) => {
         if (aiGeneration !== asked) return;
         aiThinking = false;

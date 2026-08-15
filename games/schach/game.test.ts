@@ -644,17 +644,24 @@ describe("getAiMoveIterative — differential against getAiMove", () => {
     }
   }
 
-  // Expert is 5 — odd, so the target has to be appended rather than strided
-  // onto. The rung before it is depth 4, which is what this level searched
-  // before the worker let it go deeper: a killed depth-5 search therefore falls
-  // back to exactly the old strength rather than to something weaker.
-  test("walks the ladder up to Schach's expert depth (5)", () => {
-    const state = { ...createGame({ mode: "ai", humanPlayer: "white" }), difficulty: "expert" as const };
+  // Pins every level's depth, not just expert. The differentials compare the two
+  // entry points against each other, so they move together and can never notice
+  // a depth change — reverting hard from 4 to 3 left all 72 schach tests green.
+  // Expert's 5 is odd, so the target must be appended rather than strided onto;
+  // its penultimate rung is 4, the depth this level had before the worker let it
+  // go deeper, so a killed search falls back to exactly the old strength.
+  test.each([
+    ["easy", [1]],
+    ["medium", [2]],
+    ["hard", [2, 4]],
+    ["expert", [2, 4, 5]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const state = { ...createGame({ mode: "ai", humanPlayer: "white" }), difficulty };
     const depths: number[] = [];
-    getAiMoveIterative(state, searchingRng("expert"), {
+    getAiMoveIterative(state, searchingRng(difficulty), {
       onDepth: (progress) => depths.push(progress.depth),
     });
-    expect(depths).toEqual([2, 4, 5]);
+    expect(depths).toEqual(expected);
   });
 
   test("reports a legal move at every depth, so a killed search leaves a fallback", () => {

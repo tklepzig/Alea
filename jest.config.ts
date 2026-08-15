@@ -13,6 +13,11 @@ const config: Config = {
   transform: {
     "^.+\\.tsx?$": ["ts-jest", { tsconfig: "tsconfig.test.json" }],
   },
+  // Agent tooling checks out disposable copies of this repo under .claude/ (git
+  // worktrees, so they hold a full second copy of every test file). Without this
+  // a run picks them all up: one review left 15 behind and `npm test` reported
+  // 5157 tests across 257 suites instead of 321 across 16, taking 6x as long.
+  testPathIgnorePatterns: ["/node_modules/", "/.claude/"],
 };
 
 export default config;

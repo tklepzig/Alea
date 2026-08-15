@@ -7,7 +7,11 @@
   "include": [
     "shell/ai-client.ts",
     "shell/iterative-search.ts",
+    "shell/iterative-search.test.ts",
     "shell/ai-client.test.ts",
+    "shell/ai-engines.ts",
+    "shell/ai-engines.test.ts",
+    "shell/ai-protocol.ts",
     "shell/ai-protocol.ts",
     "shell/seeded-random.ts",
     "games/quadra/game.ts",

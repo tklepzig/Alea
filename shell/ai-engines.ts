@@ -26,6 +26,28 @@ export interface QuadraPayload {
   difficulty: quadra.Difficulty;
 }
 
+/** What each game's ui.ts must post, and what it gets back. Without these the
+ *  wire's `unknown` lets a ui and this registry disagree silently — renaming a
+ *  key in games/quadra/ui.ts would compile, ship, and only fail inside the
+ *  worker, surfacing to the player as a generic "KI-Fehler". */
+export interface AiPayloads {
+  dame: dame.GameState;
+  muehle: muehle.GameState;
+  schach: schach.GameState;
+  halma: halma.GameState;
+  quadra: QuadraPayload;
+}
+
+export interface AiMoves {
+  dame: dame.Move;
+  muehle: muehle.Move;
+  schach: schach.Move;
+  /** A whole turn — a path of hops the UI replays. */
+  halma: halma.Move[];
+  /** A column index; 0 is a perfectly ordinary answer. */
+  quadra: number;
+}
+
 type AiSearch = (
   payload: unknown,
   random: RandomFn,

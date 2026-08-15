@@ -28,8 +28,6 @@ import {
   type Scored,
 } from "../../shell/iterative-search.js";
 
-export type { IterativeOptions, SearchProgress } from "../../shell/iterative-search.js";
-
 export type Player = "red" | "black";
 export type PieceKind = "man" | "king";
 export interface Piece {

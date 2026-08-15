@@ -239,13 +239,21 @@ describe("getAiMoveIterative — differential against getAiMove", () => {
     }
   }
 
-  it("ends on Mühle's odd expert depth (5), which an even stride would skip", () => {
-    const state = { ...midGame(), difficulty: "expert" as const };
+  // Pins every level's depth, not just expert: the differentials compare the two
+  // entry points against each other, so they move together and can never notice
+  // a depth change. Expert's 5 is odd and an even stride would skip it.
+  it.each([
+    ["easy", [1]],
+    ["medium", [2]],
+    ["hard", [2, 4]],
+    ["expert", [2, 4, 5]],
+  ] as const)("walks %s's ladder", (difficulty, expected) => {
+    const state = { ...midGame(), difficulty };
     const depths: number[] = [];
-    getAiMoveIterative(state, searchingRng("expert"), {
+    getAiMoveIterative(state, searchingRng(difficulty), {
       onDepth: (progress) => depths.push(progress.depth),
     });
-    expect(depths).toEqual([2, 4, 5]);
+    expect(depths).toEqual(expected);
   });
 
   it("reports a legal move at every depth, so a killed search leaves a fallback", () => {

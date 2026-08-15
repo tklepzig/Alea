@@ -6,3 +6,6 @@ ai-worker.js
 style.min.css
 style.min.css.map
 PLAN.md
+
+# Disposable repo copies made by agent tooling (git worktrees).
+.claude/worktrees/

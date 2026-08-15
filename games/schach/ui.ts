@@ -537,7 +537,7 @@ function maybeScheduleAi(): void {
     }
     const asked = ++aiGeneration;
     const current = game;
-    requestAiMove<Move>("schach", current)
+    requestAiMove("schach", current)
       .then((move) => {
         if (aiGeneration !== asked) return;
         aiThinking = false;
